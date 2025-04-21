@@ -1,9 +1,9 @@
-# helloworld
+# 拟人插件
 
-AstrBot 插件模板
+用于帮助在聊天中给Bot添加更加拟人化的元素，仅适用于QQ平台
 
-A template plugin for AstrBot plugin feature
+## 功能
 
-# 支持
-
-[帮助文档](https://astrbot.app)
+- [ ] 戳一戳后回复
+- [ ] 调用QQ表情
+- [ ] 一定条件下主动开启话题
