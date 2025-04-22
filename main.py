@@ -49,7 +49,7 @@ class MyPlugin(Star):
                     
                     # 如果成功获取提供者，则请求生成回应
                     if provider:
-                        llm_response = await provider.request(prompt)
+                        llm_response = await provider.text_chat(prompt=prompt)
                         
                         # 确保回应不为空
                         if llm_response and len(llm_response.strip()) > 0:
@@ -64,15 +64,17 @@ class MyPlugin(Star):
                         response_text = random.choice(self.fallback_responses)
                         logger.warning("无法获取LLM提供者，使用备用回应")
                     
-                    # 发送回应消息，修复At构造函数调用
-                    at_comp = Comp.At(user_id=sender_id)  # 使用命名参数
-                    
-                    # 创建消息链
-                    chain = [
-                        at_comp,
-                        Comp.Plain(" "),
-                        Comp.Plain(response_text)
-                    ]
+                    # 发送回应消息
+                    # At组件创建可能需要根据实际API调整
+                    try:
+                        # 使用正确的At组件创建方式
+                        chain = [
+                            Comp.At(qq=sender_id),
+                            Comp.Plain(response_text)
+                        ]
+                    except Exception as e:
+                        logger.error(f"创建At组件失败: {str(e)}，使用纯文本方式")
+                        chain = [Comp.Plain(f"@{sender_id} {response_text}")]
                     
                     # 发送回应
                     yield event.chain_result(chain)
@@ -81,13 +83,8 @@ class MyPlugin(Star):
                     logger.error(f"处理戳一戳事件出错: {str(e)}")
                     # 出错时使用备用回应
                     fallback = random.choice(self.fallback_responses)
-                    try:
-                        # 尝试使用不同的方式构建At组件
-                        yield event.plain_result(f"@{sender_id} {fallback}")
-                    except Exception as e2:
-                        logger.error(f"发送备用回应也失败了: {str(e2)}")
-                        # 最后的备用方案
-                        yield event.plain_result(fallback)
+                    # 直接使用纯文本，避免再次出错
+                    yield event.plain_result(f"@{sender_id} {fallback}")
     
     async def terminate(self):
         logger.info("戳一戳响应插件已终止")
