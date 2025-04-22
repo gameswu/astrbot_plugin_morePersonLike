@@ -31,6 +31,8 @@ class morePersonLikePlugin(Star):
         self.poke_enabled = self.poke_config.get("is_enable", False) if self.poke_config else False
         self.poke_prompt = self.poke_config.get("poke_prompt", "请以可爱的语气，生成一句被人戳了的拒绝回应，表现出些许娇嗔或不满，但整体保持可爱风格。") if self.poke_config else "请以可爱的语气，生成一句被人戳了的拒绝回应，表现出些许娇嗔或不满，但整体保持可爱风格。"
         self.pokeback_probability = self.poke_config.get("pokeback_probability", 0.2) if self.poke_config else 0.2
+        # 新增回戳时使用的prompt
+        self.pokeback_prompt = self.poke_config.get("pokeback_prompt", "请以可爱的语气，生成一句主动戳别人的回应，表现出顽皮或调皮的态度，但整体保持可爱风格。") if self.poke_config else "请以可爱的语气，生成一句主动戳别人的回应，表现出顽皮或调皮的态度，但整体保持可爱风格。"
         
         logger.info(f"戳一戳功能状态: {'启用' if self.poke_enabled else '禁用'}，戳回概率: {self.pokeback_probability}")
 
@@ -93,8 +95,16 @@ class morePersonLikePlugin(Star):
                     if curr_cid:
                         conversation = await self.context.conversation_manager.get_conversation(event.unified_msg_origin, curr_cid)
                         context = json.loads(conversation.history)
-                    # 使用配置中的提示语
-                    prompt = self.poke_prompt
+                    
+                    # 决定是否回戳用户
+                    will_pokeback = random.random() < self.pokeback_probability
+                    
+                    # 根据是否回戳选择提示语
+                    if will_pokeback:
+                        prompt = self.pokeback_prompt
+                        logger.info(f"触发回戳，概率: {self.pokeback_probability}，使用回戳提示语")
+                    else:
+                        prompt = self.poke_prompt
                     
                     llm_response = await self.context.get_using_provider().text_chat(prompt=prompt, contexts=context)
                         
@@ -108,13 +118,10 @@ class morePersonLikePlugin(Star):
                         
                     logger.info(f"生成的回应: {response_text}")
                     
-                    # 根据概率决定是否回戳用户
-                    if random.random() < self.pokeback_probability:
-                        logger.info(f"触发回戳，概率: {self.pokeback_probability}")
-                        # 这里添加回戳用户的代码，如果API支持的话
+                    # 如果决定回戳用户
+                    if will_pokeback:
                         try:
                             # 尝试发送回戳操作，具体实现取决于平台API
-                            # 如果不支持程序化戳一戳，可以在消息中说明"戳了戳你"
                             assert isinstance(event, AiocqhttpMessageEvent)
                             payloads = {"user_id": sender_id, "group_id": group_id}
                             await event.bot.api.call_action('send_poke', **payloads)
