@@ -106,17 +106,22 @@ class morePersonLikePlugin(Star):
                     else:
                         prompt = self.poke_prompt
                     
-                    llm_response = await self.context.get_using_provider().text_chat(prompt=prompt, contexts=context)
-                        
-                    # 确保回应不为空
-                    if llm_response and len(llm_response.completion_text.strip()) > 0:
-                        response_text = llm_response.completion_text.strip()
+                    llm_result = await event.request_llm(
+                        prompt=prompt,
+                        contexts=context,
+                        conversation=conversation
+                    )
+                    
+                    # 从结果中提取回应文本
+                    if llm_result and hasattr(llm_result, 'response') and llm_result.response:
+                        response_text = llm_result.response.strip()
                         logger.info(f"LLM生成的回应: {response_text}")
                     else:
                         # 备用回应
                         response_text = random.choice(self.fallback_responses)
+                        logger.warning(f"LLM回应为空，使用备用回应: {response_text}")
                         
-                    logger.info(f"生成的回应: {response_text}")
+                    logger.info(f"最终生成的回应: {response_text}")
                     
                     # 如果决定回戳用户
                     if will_pokeback:
@@ -243,18 +248,31 @@ class morePersonLikePlugin(Star):
                 
                 # 安全调用LLM接口
                 try:
-                    provider = self.context.get_using_provider()
-                    if provider:
-                        llm_response = await provider.text_chat(prompt=prompt, contexts=context)
-                        if llm_response and hasattr(llm_response, 'completion_text'):
-                            response_text = llm_response.completion_text.strip()
-                            logger.info(f"LLM生成的主动消息: {response_text}")
-                        else:
-                            response_text = f"诶，大家已经{time_desc}没有说话了，是不是都在忙呀？有人陪我聊聊天吗？"
-                            logger.warning("LLM响应无效，使用备用回复")
+                    # 获取对话ID和上下文
+                    curr_cid = await self.context.conversation_manager.get_curr_conversation_id(event.unified_msg_origin)
+                    conversation = None
+                    context = []
+                    if curr_cid:
+                        conversation = await self.context.conversation_manager.get_conversation(event.unified_msg_origin, curr_cid)
+                        if conversation and hasattr(conversation, 'history') and conversation.history:
+                            context = json.loads(conversation.history)
+                            
+                    # 修改提示词，加入实际的沉默时间
+                    prompt = self.active_message_prompt.replace("长时间", f"{time_desc}")
+                    
+                    llm_result = await event.request_llm(
+                        prompt=prompt,
+                        contexts=context,
+                        conversation=conversation
+                    )
+                    
+                    # 从结果中提取回应文本
+                    if llm_result and hasattr(llm_result, 'response') and llm_result.response:
+                        response_text = llm_result.response.strip()
+                        logger.info(f"LLM生成的主动消息: {response_text}")
                     else:
                         response_text = f"诶，大家已经{time_desc}没有说话了，是不是都在忙呀？有人陪我聊聊天吗？"
-                        logger.warning("无法获取LLM提供者，使用备用回复")
+                        logger.warning("LLM响应无效，使用备用回复")
                 except Exception as e:
                     response_text = f"诶，大家已经{time_desc}没有说话了，是不是都在忙呀？有人陪我聊聊天吗？"
                     logger.error(f"调用LLM生成主动消息失败: {str(e)}")
