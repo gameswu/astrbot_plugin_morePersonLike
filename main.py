@@ -41,28 +41,27 @@ class MyPlugin(Star):
                 logger.info(f"机器人被用户 {sender_id} 戳了，正在生成回应...")
                 
                 try:
+                    # 获取用户当前与 LLM 的对话以获得上下文信息。
+                    curr_cid = await self.context.conversation_manager.get_curr_conversation_id(event.unified_msg_origin)
+                    conversation = None # 对话对象
+                    context = [] # 上下文列表
+                    if curr_cid:
+                        conversation = await self.context.conversation_manager.get_conversation(event.unified_msg_origin, curr_cid)
+                        context = json.loads(conversation.history)
                     # 构建提示词引导LLM生成拒绝被戳的回应
                     prompt = "请以可爱的语气，生成一句被人戳了的拒绝回应，表现出些许娇嗔或不满，但整体保持可爱风格。不要超过30个字。"
                     
-                    # 尝试获取LLM提供者
-                    provider = self.context.get_using_provider()
-                    
-                    # 如果成功获取提供者，则请求生成回应
-                    if provider:
-                        llm_response = await provider.text_chat(prompt=prompt)
+                    llm_response = await self.context.get_using_provider().text_chat(prompt=prompt, contexts=context)
                         
-                        # 确保回应不为空
-                        if llm_response and len(llm_response.strip()) > 0:
-                            response_text = llm_response.strip()
-                        else:
-                            # 备用回应
-                            response_text = random.choice(self.fallback_responses)
-                        
-                        logger.info(f"生成的回应: {response_text}")
+                    # 确保回应不为空
+                    if llm_response and len(llm_response.completion_text.strip()) > 0:
+                        response_text = llm_response.completion_text.strip()
+                        logger.info(f"LLM生成的回应: {response_text}")
                     else:
-                        # 如果无法获取提供者，使用备用回应
+                        # 备用回应
                         response_text = random.choice(self.fallback_responses)
-                        logger.warning("无法获取LLM提供者，使用备用回应")
+                        
+                    logger.info(f"生成的回应: {response_text}")
                     
                     # 发送回应消息
                     try:
