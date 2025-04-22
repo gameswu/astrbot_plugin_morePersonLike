@@ -3,11 +3,21 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 import astrbot.api.message_components as Comp
 from astrbot.api.all import *
+import random
 
 @register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化，仅支持QQ平台", "0.1.0b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
 class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
+        # 预设一些备用回复，以防LLM调用失败
+        self.fallback_responses = [
+            "哼！不要随便戳我啦，人家会生气的！",
+            "啊呜~被戳到了，好痒呀！请不要再戳啦~",
+            "再戳我的话，我就...我就生气了！",
+            "主人~不要老是戳我嘛，人家会害羞的~",
+            "呜呜，被戳到敏感部位了啦>//<",
+            "喵呜~ 被戳的感觉好奇怪呀"
+        ]
 
     async def initialize(self):
         logger.info("戳一戳响应插件已初始化")
@@ -27,39 +37,57 @@ class MyPlugin(Star):
             target_id = message_data.get('target_id')
 
             if sender_id != bot_id and target_id == bot_id:
-                # bot被戳，调用LLM接口生成拒绝回应
+                # bot被戳，准备回应
                 logger.info(f"机器人被用户 {sender_id} 戳了，正在生成回应...")
                 
-                # 构建提示词引导LLM生成拒绝被戳的回应
-                prompt = "请以可爱的语气，生成一句被人戳了的拒绝回应，表现出些许娇嗔或不满，但整体保持可爱风格。不要超过30个字。"
-                
                 try:
-                    # 调用AstrBot的LLM接口
-                    llm_response = await self.context.get_using_provider(prompt)
+                    # 构建提示词引导LLM生成拒绝被戳的回应
+                    prompt = "请以可爱的语气，生成一句被人戳了的拒绝回应，表现出些许娇嗔或不满，但整体保持可爱风格。不要超过30个字。"
                     
-                    # 确保回应不为空
-                    if llm_response and len(llm_response.strip()) > 0:
-                        response_text = llm_response.strip()
+                    # 尝试获取LLM提供者
+                    provider = self.context.get_using_provider()
+                    
+                    # 如果成功获取提供者，则请求生成回应
+                    if provider:
+                        llm_response = await provider.request(prompt)
+                        
+                        # 确保回应不为空
+                        if llm_response and len(llm_response.strip()) > 0:
+                            response_text = llm_response.strip()
+                        else:
+                            # 备用回应
+                            response_text = random.choice(self.fallback_responses)
+                        
+                        logger.info(f"生成的回应: {response_text}")
                     else:
-                        # 备用回应
-                        response_text = "哼！不要随便戳我啦，人家会生气的！"
+                        # 如果无法获取提供者，使用备用回应
+                        response_text = random.choice(self.fallback_responses)
+                        logger.warning("无法获取LLM提供者，使用备用回应")
                     
-                    logger.info(f"生成的回应: {response_text}")
+                    # 发送回应消息，修复At构造函数调用
+                    at_comp = Comp.At(user_id=sender_id)  # 使用命名参数
                     
-                    # 发送回应消息
-                    yield event.chain_result([
-                        Comp.At(sender_id),
+                    # 创建消息链
+                    chain = [
+                        at_comp,
                         Comp.Plain(" "),
                         Comp.Plain(response_text)
-                    ])
+                    ]
+                    
+                    # 发送回应
+                    yield event.chain_result(chain)
                     
                 except Exception as e:
-                    logger.error(f"调用LLM接口失败: {str(e)}")
+                    logger.error(f"处理戳一戳事件出错: {str(e)}")
                     # 出错时使用备用回应
-                    yield event.chain_result([
-                        Comp.At(sender_id),
-                        Comp.Plain(" 不要戳我啦！好痒的说~")
-                    ])
+                    fallback = random.choice(self.fallback_responses)
+                    try:
+                        # 尝试使用不同的方式构建At组件
+                        yield event.plain_result(f"@{sender_id} {fallback}")
+                    except Exception as e2:
+                        logger.error(f"发送备用回应也失败了: {str(e2)}")
+                        # 最后的备用方案
+                        yield event.plain_result(fallback)
     
     async def terminate(self):
         logger.info("戳一戳响应插件已终止")
