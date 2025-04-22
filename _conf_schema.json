@@ -1,0 +1,44 @@
+{
+    "on_poke": {
+        "description": "应答戳一戳功能配置",
+        "type": "object",
+        "items": {
+            "is_enable": {
+                "description": "是否启用",
+                "type": "bool",
+                "default": false
+            },
+            "poke_prompt": {
+                "description": "传递给llm的戳一戳提示语",
+                "type": "string",
+                "default": "请以可爱的语气，生成一句被人戳了的拒绝回应，表现出些许娇嗔或不满，但整体保持可爱风格。"  
+            },
+            "pokeback_probability": {
+                "description": "回戳用户的概率",
+                "type": "float",
+                "default": 0.2
+            }
+        }
+    },
+    "active_message": {
+        "description": "主动消息功能配置",
+        "type": "object",
+        "items": {
+            "is_enable": {
+                "description": "是否启用",
+                "type": "bool",
+                "default": false
+            },
+            "active_message_prompt": {
+                "description": "传递给llm的主动消息提示语",
+                "type": "string",
+                "default": "长时间没有人搭理你，因此请你以可爱的语气，生成一条消息寻求大家陪你聊天或玩耍，表现出些许娇嗔或不满，但整体保持可爱风格。"  
+            },
+            "time_interval": {
+                "description": "主动消息的时间间隔（秒）",
+                "type": "int",
+                "default": 3600
+            }
+        }
+    }
+}
