@@ -2,7 +2,7 @@
     "on_poke": {
         "type": "object",
         "description": "戳一戳相关配置",
-        "properties": {
+        "items": {
             "is_enable": {
                 "type": "bool",
                 "description": "是否启用戳一戳功能",
@@ -28,7 +28,7 @@
     "active_message": {
         "type": "object",
         "description": "主动消息相关配置",
-        "properties": {
+        "items": {
             "is_enable": {
                 "type": "bool",
                 "description": "是否启用主动消息功能",
