@@ -8,7 +8,7 @@ import random
 import time
 import json
 
-@register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化，仅支持QQ平台", "0.1.0b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
+@register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化，仅支持QQ平台与aiocqhttp适配器", "0.1.0b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
 class MorePersonLike(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
