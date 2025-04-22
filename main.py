@@ -108,6 +108,7 @@ class morePersonLikePlugin(Star):
                     
                     llm_result = await event.request_llm(
                         prompt=prompt,
+                        func_tool_manager=self.context.get_llm_tool_manager(),
                         contexts=context,
                         conversation=conversation
                     )
@@ -262,6 +263,7 @@ class morePersonLikePlugin(Star):
                     
                     llm_result = await event.request_llm(
                         prompt=prompt,
+                        func_tool_manager=self.context.get_llm_tool_manager(),
                         contexts=context,
                         conversation=conversation
                     )
