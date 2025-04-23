@@ -170,39 +170,22 @@ class morePersonLikePlugin(Star):
         self.group_last_message_time = {}
     
     @llm_tool("send_qq_emoji")
-    async def send_qq_emoji(self, event: AstrMessageEvent, emoji_name: str) -> Dict[str, Any]:
+    async def send_qq_emoji(self, event: AstrMessageEvent, emoji_name: str):
         """生成QQ表情的函数工具
         
         Args:
             emoji_name(string): 表情名称
         """
         try:
-            # 检查表情名称是否在映射表中
-            if emoji_name not in self.emoji_map:
-                return {
-                    "success": False,
-                    "message": f"未找到名为'{emoji_name}'的表情，请使用其他表情名称。",
-                    "emoji_text": f"[不存在的表情:{emoji_name}]"
-                }
-            
             # 获取表情ID
             emoji_id = self.emoji_map[emoji_name]
-            
-            # 生成CQ码 (QQ表情的格式)
-            cq_code = f"[CQ:face,id={emoji_id}]"
-            
-            return {
-                "success": True,
-                "message": f"已添加'{emoji_name}'表情",
-                "emoji_text": cq_code
-            }
+            yield event.chain_result([
+                Face(id=emoji_id)
+            ])
+        except KeyError:
+            logger.error(f"表情名称 '{emoji_name}' 不存在")
         except Exception as e:
             logger.error(f"生成QQ表情时出错: {str(e)}")
-            return {
-                "success": False,
-                "message": f"生成表情时发生错误: {str(e)}",
-                "emoji_text": f"[表情错误]"
-            }
 
     @event_message_type(EventMessageType.GROUP_MESSAGE)
     async def track_group_message(self, event: AstrMessageEvent):
