@@ -180,27 +180,60 @@ class morePersonLikePlugin(Star):
             # 获取消息内容
             message = event.get_result()
             chain = message.chain
-            # 将chain里的plain匹配到的[qq_emoji:xxx]替换为对应的QQ表情
-            # example: chain = [Comp.Plain("你好[qq_emoji:4]！")] -> [Comp.Plain("你好"), Comp.Face(4), Comp.Plain("！")]
-            for i in range(len(chain)):
-                if isinstance(chain[i], Comp.Plain):
-                    # 匹配[qq_emoji:xxx]
-                    matches = re.findall(r'\[qq_emoji:(\d+)\]', chain[i].text)
+            new_chain = []
+            
+            # 处理消息链中的每个组件
+            for component in chain:
+                # 只处理Plain文本组件
+                if isinstance(component, Comp.Plain):
+                    text = component.text
+                    # 使用正则表达式查找所有的{qq_emoji:xxx}格式
+                    pattern = r'\{qq_emoji:(\w+)\}'
+                    matches = list(re.finditer(pattern, text))
+                    
+                    if not matches:
+                        # 如果没有匹配项，直接添加原组件
+                        new_chain.append(component)
+                        continue
+                    
+                    # 处理匹配项
+                    last_end = 0
                     for match in matches:
-                        # 获取对应的QQ表情ID
-                        emoji_id = self.emoji_map.get(match)
-                        if emoji_id:
-                            # 替换为QQ表情组件
-                            chain[i] = Comp.Face(emoji_id)
-                            logger.debug(f"替换[qq_emoji:{match}]为QQ表情ID: {emoji_id}")
+                        start, end = match.span()
+                        emoji_name = match.group(1)
+                        
+                        # 添加表情前的文本
+                        if start > last_end:
+                            prefix_text = text[last_end:start]
+                            if prefix_text:
+                                new_chain.append(Comp.Plain(prefix_text))
+                        
+                        # 添加表情
+                        if emoji_name in self.emoji_map:
+                            emoji_id = self.emoji_map[emoji_name]
+                            new_chain.append(Comp.Face(id=emoji_id))
+                            logger.debug(f"替换表情: {emoji_name} -> Face({emoji_id})")
                         else:
-                            logger.warning(f"未找到对应的QQ表情ID: {match}")
+                            # 表情名不存在时，保留原文本
+                            new_chain.append(Comp.Plain(match.group(0)))
+                            logger.warning(f"未找到表情: {emoji_name}")
+                        
+                        last_end = end
+                    
+                    # 添加最后一个表情后的文本
+                    if last_end < len(text):
+                        suffix_text = text[last_end:]
+                        if suffix_text:
+                            new_chain.append(Comp.Plain(suffix_text))
+                else:
+                    # 非Plain组件直接添加
+                    new_chain.append(component)
+            
             # 将处理后的chain重新赋值给消息
-            message.chain = chain
-            logger.debug(f"处理后的消息链: {message.chain}") 
+            message.chain = new_chain
+            logger.info(f"处理后的消息链: {message.chain}") 
         except Exception as e:
             logger.error(f"处理QQ表情时出错: {str(e)}")
-
 
     @event_message_type(EventMessageType.GROUP_MESSAGE)
     async def track_group_message(self, event: AstrMessageEvent):
