@@ -170,7 +170,7 @@ class morePersonLikePlugin(Star):
         self.group_last_message_time = {}
     
     @llm_tool("send_qq_emoji")
-    async def send_qq_emoji(self, emoji_name: str) -> Dict[str, Any]:
+    async def send_qq_emoji(self, event: AstrMessageEvent, emoji_name: str) -> Dict[str, Any]:
         """生成QQ表情的函数工具
         
         Args:
