@@ -4,9 +4,11 @@ from astrbot.api import logger
 import astrbot.api.message_components as Comp
 from astrbot.api.all import *
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+import astrbot.api.provider as ProviderRequest
 import random
 import time
 import json
+import re
 from typing import List, Dict, Any, Optional
 
 @register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化", "0.1.1b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
@@ -169,23 +171,36 @@ class morePersonLikePlugin(Star):
         # 用于跟踪每个群的最后消息时间
         self.group_last_message_time = {}
     
-    @llm_tool("send_qq_emoji")
-    async def send_qq_emoji(self, event: AstrMessageEvent, emoji_name: str):
-        """生成QQ表情的函数工具
-        
-        Args:
-            emoji_name(string): 表情名称
+    @filter.on_decorating_result()
+    async def QQ_emoji(self, event: AstrMessageEvent):
+        """
+        对于大模型返回的[qq_emoji:xxx]，替换为对应的QQ表情
         """
         try:
-            # 获取表情ID
-            emoji_id = self.emoji_map[emoji_name]
-            yield event.chain_result([
-                Face(id=emoji_id)
-            ])
-        except KeyError:
-            logger.error(f"表情名称 '{emoji_name}' 不存在")
+            # 获取消息内容
+            message = event.get_result()
+            chain = message.chain
+            # 将chain里的plain匹配到的[qq_emoji:xxx]替换为对应的QQ表情
+            # example: chain = [Comp.Plain("你好[qq_emoji:4]！")] -> [Comp.Plain("你好"), Comp.Face(4), Comp.Plain("！")]
+            for i in range(len(chain)):
+                if isinstance(chain[i], Comp.Plain):
+                    # 匹配[qq_emoji:xxx]
+                    matches = re.findall(r'\[qq_emoji:(\d+)\]', chain[i].text)
+                    for match in matches:
+                        # 获取对应的QQ表情ID
+                        emoji_id = self.emoji_map.get(match)
+                        if emoji_id:
+                            # 替换为QQ表情组件
+                            chain[i] = Comp.Face(emoji_id)
+                            logger.debug(f"替换[qq_emoji:{match}]为QQ表情ID: {emoji_id}")
+                        else:
+                            logger.warning(f"未找到对应的QQ表情ID: {match}")
+            # 将处理后的chain重新赋值给消息
+            message.chain = chain
+            logger.debug(f"处理后的消息链: {message.chain}") 
         except Exception as e:
-            logger.error(f"生成QQ表情时出错: {str(e)}")
+            logger.error(f"处理QQ表情时出错: {str(e)}")
+
 
     @event_message_type(EventMessageType.GROUP_MESSAGE)
     async def track_group_message(self, event: AstrMessageEvent):
