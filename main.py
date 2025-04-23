@@ -7,6 +7,7 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import Aioc
 import random
 import time
 import json
+from typing import List, Dict, Any, Optional
 
 @register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化", "0.1.1b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
 class morePersonLikePlugin(Star):
@@ -22,6 +23,126 @@ class morePersonLikePlugin(Star):
             "呜呜，被戳到敏感部位了啦>//<",
             "喵呜~ 被戳的感觉好奇怪呀"
         ]
+        
+        # QQ表情ID映射表，可以根据需要扩充
+        self.emoji_map = {
+            "得意": 4,
+            "流泪": 5,
+            "睡": 8,
+            "大哭": 9,
+            "尴尬": 10,
+            "调皮": 12,
+            "微笑": 14,
+            "酷": 16,
+            "可爱": 21,
+            "傲慢": 23,
+            "饥饿": 24,
+            "困": 25,
+            "惊恐": 26,
+            "流汗": 27,
+            "憨笑": 28,
+            "悠闲": 29,
+            "奋斗": 30,
+            "疑问": 32,
+            "嘘": 33,
+            "晕": 34,
+            "敲打": 38,
+            "再见": 39,
+            "发抖": 41,
+            "爱情": 42,
+            "跳跳": 43,
+            "拥抱": 49,
+            "蛋糕": 53,
+            "咖啡": 60,
+            "玫瑰": 63,
+            "爱心": 66,
+            "太阳": 74,
+            "月亮": 75,
+            "赞": 76,
+            "握手": 78,
+            "胜利": 79,
+            "飞吻": 85,
+            "西瓜": 89,
+            "冷汗": 96,
+            "擦汗": 97,
+            "抠鼻": 98,
+            "鼓掌": 99,
+            "糗大了": 100,
+            "坏笑": 101,
+            "左哼哼": 102,
+            "右哼哼": 103,
+            "哈欠": 104,
+            "委屈": 106,
+            "左亲亲": 109,
+            "可怜": 111,
+            "示爱": 116,
+            "抱拳": 118,
+            "拳头": 120,
+            "爱你": 122,
+            "NO": 123,
+            "OK": 124,
+            "转圈": 125,
+            "挥手": 129,
+            "喝彩": 144,
+            "棒棒糖": 147,
+            "茶": 171,
+            "泪奔": 173,
+            "无奈": 174,
+            "卖萌": 175,
+            "小纠结": 176,
+            "doge": 179,
+            "惊喜": 180,
+            "骚扰": 181,
+            "笑哭": 182,
+            "我最美": 183,
+            "点赞": 201,
+            "托脸": 203,
+            "托腮": 212,
+            "啵啵": 214,
+            "蹭一蹭": 219,
+            "抱抱": 222,
+            "拍手": 227,
+            "佛系": 232,
+            "喷脸": 240,
+            "甩头": 243,
+            "加油抱抱": 246,
+            "脑阔疼": 262,
+            "捂脸": 264,
+            "辣眼睛": 265,
+            "哦哟": 266,
+            "头秃": 267,
+            "问号脸": 268,
+            "暗中观察": 269,
+            "emm": 270,
+            "吃瓜": 271,
+            "呵呵哒": 272,
+            "我酸了": 273,
+            "汪汪": 277,
+            "汗": 278,
+            "无眼笑": 281,
+            "敬礼": 282,
+            "面无表情": 284,
+            "摸鱼": 285,
+            "哦": 287,
+            "睁眼": 289,
+            "敲开心": 290,
+            "摸锦鲤": 293,
+            "期待": 294,
+            "拜谢": 297,
+            "元宝": 298,
+            "牛啊": 299,
+            "右亲亲": 305,
+            "牛气冲天": 306,
+            "喵喵": 307,
+            "仔细分析": 314,
+            "加油": 315,
+            "崇拜": 318,
+            "比心": 319,
+            "庆祝": 320,
+            "拒绝": 322,
+            "吃糖": 324,
+            "生气": 326
+        }
 
     async def initialize(self):
         logger.info("插件已初始化")
@@ -47,6 +168,41 @@ class morePersonLikePlugin(Star):
         
         # 用于跟踪每个群的最后消息时间
         self.group_last_message_time = {}
+    
+    @llm_tool("send_qq_emoji")
+    async def send_qq_emoji(self, emoji_name: str) -> Dict[str, Any]:
+        """生成QQ表情的函数工具
+        
+        Args:
+            emoji_name(string): 表情名称
+        """
+        try:
+            # 检查表情名称是否在映射表中
+            if emoji_name not in self.emoji_map:
+                return {
+                    "success": False,
+                    "message": f"未找到名为'{emoji_name}'的表情，请使用其他表情名称。",
+                    "emoji_text": f"[不存在的表情:{emoji_name}]"
+                }
+            
+            # 获取表情ID
+            emoji_id = self.emoji_map[emoji_name]
+            
+            # 生成CQ码 (QQ表情的格式)
+            cq_code = f"[CQ:face,id={emoji_id}]"
+            
+            return {
+                "success": True,
+                "message": f"已添加'{emoji_name}'表情",
+                "emoji_text": cq_code
+            }
+        except Exception as e:
+            logger.error(f"生成QQ表情时出错: {str(e)}")
+            return {
+                "success": False,
+                "message": f"生成表情时发生错误: {str(e)}",
+                "emoji_text": f"[表情错误]"
+            }
 
     @event_message_type(EventMessageType.GROUP_MESSAGE)
     async def track_group_message(self, event: AstrMessageEvent):
