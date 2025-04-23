@@ -172,13 +172,13 @@ class morePersonLikePlugin(Star):
         self.group_last_message_time = {}
     
     @filter.on_decorating_result()
-    async def QQ_emoji(self, event: AstrMessageEvent, result: MessageEventResult):
+    async def QQ_emoji(self, event: AstrMessageEvent) -> MessageEventResult:
         """
         对于大模型返回的[qq_emoji:xxx]，替换为对应的QQ表情
         """
         try:
             # 获取消息内容
-            message = result  # 使用传入的result参数而不是从event获取
+            message = event.get_result()  # 使用传入的result参数而不是从event获取
             chain = message.chain
             new_chain = []
             
