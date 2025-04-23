@@ -106,23 +106,13 @@ class morePersonLikePlugin(Star):
                     else:
                         prompt = self.poke_prompt
                     
-                    llm_result = await event.request_llm(
+                    # 直接使用event.request_llm方法，避免使用provider_request.await_result()
+                    yield event.request_llm(
                         prompt=prompt,
                         func_tool_manager=self.context.get_llm_tool_manager(),
                         contexts=context,
                         conversation=conversation
                     )
-                    
-                    # 从结果中提取回应文本
-                    if llm_result and hasattr(llm_result, 'response') and llm_result.response:
-                        response_text = llm_result.response.strip()
-                        logger.info(f"LLM生成的回应: {response_text}")
-                    else:
-                        # 备用回应
-                        response_text = random.choice(self.fallback_responses)
-                        logger.warning(f"LLM回应为空，使用备用回应: {response_text}")
-                        
-                    logger.info(f"最终生成的回应: {response_text}")
                     
                     # 如果决定回戳用户
                     if will_pokeback:
@@ -139,8 +129,7 @@ class morePersonLikePlugin(Star):
                     try:
                         # 使用正确的At组件创建方式
                         chain = [
-                            Comp.At(qq=sender_id),
-                            Comp.Plain(response_text)
+                            Comp.At(qq=sender_id)
                         ]
                         
                         # 确保返回一个可迭代对象
@@ -150,7 +139,7 @@ class morePersonLikePlugin(Star):
                         else:
                             # 如果chain_result返回None，尝试使用plain_result
                             logger.warning("chain_result返回None，尝试使用plain_result")
-                            plain_result = event.plain_result(f"@{sender_id} {response_text}")
+                            plain_result = event.plain_result(f"@{sender_id}")
                             if plain_result is not None:
                                 yield plain_result
                             else:
@@ -159,7 +148,7 @@ class morePersonLikePlugin(Star):
                         logger.error(f"创建At组件或发送回应失败: {str(e)}，尝试使用纯文本方式")
                         try:
                             # 尝试使用纯文本方式
-                            plain_result = event.plain_result(f"@{sender_id} {response_text}")
+                            plain_result = event.plain_result(f"@{sender_id}")
                             if plain_result is not None:
                                 yield plain_result
                             else:
@@ -261,37 +250,18 @@ class morePersonLikePlugin(Star):
                     # 修改提示词，加入实际的沉默时间
                     prompt = self.active_message_prompt.replace("长时间", f"{time_desc}")
                     
-                    llm_result = await event.request_llm(
+                    yield event.request_llm(
                         prompt=prompt,
                         func_tool_manager=self.context.get_llm_tool_manager(),
                         contexts=context,
                         conversation=conversation
                     )
+                    self.config[last_active_time_key] = current_time
+                    self.group_last_message_time[group_id] = current_time
                     
-                    # 从结果中提取回应文本
-                    if llm_result and hasattr(llm_result, 'response') and llm_result.response:
-                        response_text = llm_result.response.strip()
-                        logger.info(f"LLM生成的主动消息: {response_text}")
-                    else:
-                        response_text = f"诶，大家已经{time_desc}没有说话了，是不是都在忙呀？有人陪我聊聊天吗？"
-                        logger.warning("LLM响应无效，使用备用回复")
                 except Exception as e:
                     response_text = f"诶，大家已经{time_desc}没有说话了，是不是都在忙呀？有人陪我聊聊天吗？"
                     logger.error(f"调用LLM生成主动消息失败: {str(e)}")
-                
-                # 发送主动消息
-                try:
-                    result = event.plain_result(response_text)
-                    if result is not None:
-                        yield result
-                        # 更新该群的最后主动消息时间
-                        self.config[last_active_time_key] = current_time
-                        # 同时更新最后消息时间（防止短时间内再次触发）
-                        self.group_last_message_time[group_id] = current_time
-                    else:
-                        logger.error("主动消息发送失败，返回None")
-                except Exception as e:
-                    logger.error(f"发送主动消息失败: {str(e)}")
         
         except Exception as e:
             logger.error(f"处理主动消息事件出错: {str(e)}")
