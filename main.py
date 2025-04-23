@@ -64,7 +64,7 @@ class morePersonLikePlugin(Star):
         except Exception as e:
             logger.error(f"跟踪群消息时出错: {str(e)}")
 
-    @event_message_type(EventMessageType.GROUP_MESSAGE)
+    @event_message_type(EventMessageType.ALL)
     async def on_poke(self, event: AstrMessageEvent):
         """
         处理戳一戳事件
