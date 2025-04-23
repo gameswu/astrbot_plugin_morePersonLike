@@ -1,5 +1,5 @@
 name: morePersonLike # 这是你的插件的唯一识别名。
 desc: 用于帮助缺少多模态能力的llm更加拟人化，仅支持QQ平台 # 插件简短描述
-version: v0.1.0b # 插件版本号。格式：v1.1.1 或者 v1.1
+version: v0.1.1b # 插件版本号。格式：v1.1.1 或者 v1.1
 author: gameswu # 作者
 repo: https://github.com/gameswu/astrbot_plugin_morePersonLike # 插件的仓库地址
