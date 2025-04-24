@@ -5,6 +5,7 @@ import astrbot.api.message_components as Comp
 from astrbot.api.all import *
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 import astrbot.api.provider as ProviderRequest
+
 import random
 import time
 import json
@@ -12,20 +13,16 @@ import re
 import os
 from typing import List, Dict, Any, Optional
 
+# 导入设置文件
+from .setting import FALLBACK_RESPONSES, load_config
+
 @register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化", "0.1.1b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
 class morePersonLikePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
-        # 预设一些备用回复，以防LLM调用失败
-        self.fallback_responses = [
-            "哼！不要随便戳我啦，人家会生气的！",
-            "啊呜~被戳到了，好痒呀！请不要再戳啦~",
-            "再戳我的话，我就...我就生气了！",
-            "主人~不要老是戳我嘛，人家会害羞的~",
-            "呜呜，被戳到敏感部位了啦>//<",
-            "喵呜~ 被戳的感觉好奇怪呀"
-        ]
+        # 从设置文件加载备用回复
+        self.fallback_responses = FALLBACK_RESPONSES
         
         # 初始化一个空的emoji映射表，将在initialize方法中从文件加载
         self.emoji_map = {}
@@ -33,12 +30,39 @@ class morePersonLikePlugin(Star):
     async def initialize(self):
         logger.info("插件已初始化")
         
+        # 从设置文件加载配置
+        settings = load_config(self.config)
+        
+        # 获取戳一戳配置
+        poke_settings = settings["poke_config"]
+        self.poke_enabled = poke_settings["is_enable"]
+        self.poke_prompt = poke_settings["poke_prompt"]
+        self.pokeback_probability = poke_settings["pokeback_probability"]
+        self.pokeback_prompt = poke_settings["pokeback_prompt"]
+        
+        logger.info(f"戳一戳功能状态: {'启用' if self.poke_enabled else '禁用'}，戳回概率: {self.pokeback_probability}")
+
+        # 获取主动消息配置
+        active_settings = settings["active_message_config"]
+        self.active_message_enabled = active_settings["is_enable"]
+        self.active_message_prompt = active_settings["active_message_prompt"]
+        self.time_interval = active_settings["time_interval"]
+        
+        logger.info(f"主动消息功能状态: {'启用' if self.active_message_enabled else '禁用'}，时间间隔: {self.time_interval}秒")
+        
+        # 获取QQ表情配置
+        emoji_settings = settings["qq_emoji_config"]
+        self.emoji_enabled = emoji_settings["is_enable"]
+        self.emoji_prompt = emoji_settings["qq_emoji_prompt"]
+        self.emoji_regex = emoji_settings["regular_expression"]
+        emoji_file_path = "data/qq_emoji.json"  # 默认的emoji json文件路径
+        
         # 从JSON文件加载emoji映射表
         try:
             # 获取当前文件所在目录
             current_dir = os.path.dirname(os.path.abspath(__file__))
             # 构建emoji json文件的路径
-            emoji_file_path = os.path.join(current_dir, "data", "qq_emoji.json")
+            emoji_file_path = os.path.join(current_dir, emoji_file_path)
             
             # 检查文件是否存在
             if not os.path.exists(emoji_file_path):
@@ -51,36 +75,40 @@ class morePersonLikePlugin(Star):
                 logger.info(f"成功从文件加载了 {len(self.emoji_map)} 个QQ表情映射")
         except Exception as e:
             logger.error(f"加载QQ表情映射文件时出错: {str(e)}")
-            # 出错时保持emoji_map为空字典
-        
-        # 获取 on_poke 配置对象
-        self.poke_config = self.config.get("on_poke", {})
-        # 获取子项配置 - 修复可能的列表索引错误
-        self.poke_enabled = self.poke_config.get("is_enable", False) if self.poke_config else False
-        self.poke_prompt = self.poke_config.get("poke_prompt", "请以可爱的语气，生成一句被人戳了的拒绝回应，表现出些许娇嗔或不满，但整体保持可爱风格。") if self.poke_config else "请以可爱的语气，生成一句被人戳了的拒绝回应，表现出些许娇嗔或不满，但整体保持可爱风格。"
-        self.pokeback_probability = self.poke_config.get("pokeback_probability", 0.2) if self.poke_config else 0.2
-        # 新增回戳时使用的prompt
-        self.pokeback_prompt = self.poke_config.get("pokeback_prompt", "请以可爱的语气，生成一句主动戳别人的回应，表现出顽皮或调皮的态度，但整体保持可爱风格。") if self.poke_config else "请以可爱的语气，生成一句主动戳别人的回应，表现出顽皮或调皮的态度，但整体保持可爱风格。"
-        
-        logger.info(f"戳一戳功能状态: {'启用' if self.poke_enabled else '禁用'}，戳回概率: {self.pokeback_probability}")
 
-        # 获取 active_message 配置对象
-        self.active_message_config = self.config.get("active_message", {})
-        # 获取子项配置 - 修复可能的列表索引错误
-        self.active_message_enabled = self.active_message_config.get("is_enable", False) if self.active_message_config else False
-        self.active_message_prompt = self.active_message_config.get("active_message_prompt", "长时间没有人搭理你，因此请你以可爱的语气，生成一条消息寻求大家陪你聊天或玩耍，表现出些许娇嗔或不满，但整体保持可爱风格。") if self.active_message_config else "长时间没有人搭理你，因此请你以可爱的语气，生成一条消息寻求大家陪你聊天或玩耍，表现出些许娇嗔或不满，但整体保持可爱风格。"
-        self.time_interval = self.active_message_config.get("time_interval", 3600) if self.active_message_config else 3600
-        
-        logger.info(f"主动消息功能状态: {'启用' if self.active_message_enabled else '禁用'}，时间间隔: {self.time_interval}秒")
-        
         # 用于跟踪每个群的最后消息时间
         self.group_last_message_time = {}
+
+    @filter.on_llm_request()
+    async def qq_emoji_prompt(self, event: AstrMessageEvent) -> MessageEventResult:
+        """
+        处理LLM请求，添加QQ表情提示
+        """
+        # 如果QQ表情功能被禁用，直接返回
+        if not getattr(self, "emoji_enabled", True):
+            return
+            
+        try:
+            # 获取消息内容
+            message = event.get_result()  # 使用传入的result参数而不是从event获取
+            prompt = message.prompt
+            
+            # 添加QQ表情提示
+            prompt += f"\n{self.emoji_prompt}"
+            message.prompt = prompt
+            logger.info(f"添加QQ表情提示: {prompt}")
+        except Exception as e:
+            logger.error(f"处理LLM请求时出错: {str(e)}")
     
     @filter.on_decorating_result()
-    async def QQ_emoji(self, event: AstrMessageEvent) -> MessageEventResult:
+    async def qq_emoji(self, event: AstrMessageEvent) -> MessageEventResult:
         """
-        对于大模型返回的[qq_emoji:xxx]，替换为对应的QQ表情
+        按照正则匹配规则，替换为对应的QQ表情
         """
+        # 如果QQ表情功能被禁用，直接返回
+        if not getattr(self, "emoji_enabled", True):
+            return
+            
         try:
             # 获取消息内容
             message = event.get_result()  # 使用传入的result参数而不是从event获取
@@ -92,8 +120,8 @@ class morePersonLikePlugin(Star):
                 # 只处理Plain文本组件
                 if isinstance(component, Comp.Plain):
                     text = component.text
-                    # 使用正则表达式查找所有的{qq_emoji:xxx}格式
-                    pattern = r'\{qq_emoji:(\w+)\}'
+                    # 使用配置中的正则表达式查找所有的表情格式
+                    pattern = self.emoji_regex
                     matches = list(re.finditer(pattern, text))
                     
                     if not matches:
@@ -105,7 +133,7 @@ class morePersonLikePlugin(Star):
                     last_end = 0
                     for match in matches:
                         start, end = match.span()
-                        emoji_name = match.group(1)
+                        emoji_name = match.group(1)  # 假设正则表达式的第一个捕获组是表情名称
                         
                         # 添加表情前的文本
                         if start > last_end:
@@ -119,8 +147,10 @@ class morePersonLikePlugin(Star):
                             new_chain.append(Comp.Face(id=emoji_id))
                             logger.debug(f"替换表情: {emoji_name} -> Face({emoji_id})")
                         else:
-                            # 表情名不存在时，保留原文本
-                            new_chain.append(Comp.Plain(match.group(0)))
+                            # 表情名不存在时，保留原文本或使用替代表情
+                            # 可以在这里添加逻辑，尝试近似匹配或提供替代表情
+                            original_text = match.group(0)
+                            new_chain.append(Comp.Plain(original_text))
                             logger.warning(f"未找到表情: {emoji_name}")
                         
                         last_end = end
@@ -136,10 +166,10 @@ class morePersonLikePlugin(Star):
             
             # 将处理后的chain重新赋值给消息
             message.chain = new_chain
-            logger.info(f"处理后的消息链: {message.chain}") 
+            logger.debug(f"处理后的消息链: {message.chain}")  # 改为debug级别，减少日志输出
         except Exception as e:
             logger.error(f"处理QQ表情时出错: {str(e)}")
-
+            
     @event_message_type(EventMessageType.GROUP_MESSAGE)
     async def track_group_message(self, event: AstrMessageEvent):
         """

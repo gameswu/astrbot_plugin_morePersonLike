@@ -45,5 +45,26 @@
                 "default": 3600
             }
         }
+    },
+    "qq_emoji": {
+        "type": "object",
+        "description": "QQ表情相关配置",
+        "items": {
+            "is_enable": {
+                "type": "bool",
+                "description": "是否启用QQ表情功能",
+                "default": true
+            },
+            "qq_emoji_prompt": {
+                "type": "string",
+                "description": "QQ表情的LLM提示语",
+                "default": "当你需要使用QQ表情时，请使用{qq_emoji:名称}的标签格式，例如，请注意当你这样使用时真的可以发出QQ表情：\n你好{qq_emoji:得意} -> 你好+得意的qq表情"
+            },
+            "regular_expression": {
+                "type": "string",
+                "description": "用于匹配QQ表情的正则表达式",
+                "default": "\\{qq_emoji:(.*?)\\}"
+            }
+        }
     }
 }
