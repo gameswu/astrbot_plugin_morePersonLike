@@ -235,6 +235,8 @@ class morePersonLikePlugin(Star):
                         try:
                             # 尝试发送回戳操作，具体实现取决于平台API
                             assert isinstance(event, AiocqhttpMessageEvent)
+                            if group_id is None:
+                                payloads = {"user_id": sender_id}
                             payloads = {"user_id": sender_id, "group_id": group_id}
                             await event.bot.api.call_action('send_poke', **payloads)
                             logger.info(f"成功回戳用户 {sender_id}")
