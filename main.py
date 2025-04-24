@@ -80,7 +80,7 @@ class morePersonLikePlugin(Star):
         self.group_last_message_time = {}
 
     @filter.on_llm_request()
-    async def qq_emoji_prompt(self, event: AstrMessageEvent) -> MessageEventResult:
+    async def qq_emoji_prompt(self, event: AstrMessageEvent, req: ProviderRequest):
         """
         处理LLM请求，添加QQ表情提示
         """
@@ -89,14 +89,8 @@ class morePersonLikePlugin(Star):
             return
             
         try:
-            # 获取消息内容
-            message = event.get_result()  # 使用传入的result参数而不是从event获取
-            prompt = message.prompt
-            
-            # 添加QQ表情提示
-            prompt += f"\n{self.emoji_prompt}"
-            message.prompt = prompt
-            logger.info(f"添加QQ表情提示: {prompt}")
+            req.system_prompt += self.emoji_prompt
+            logger.info(f"添加QQ表情提示: {self.emoji_prompt}")
         except Exception as e:
             logger.error(f"处理LLM请求时出错: {str(e)}")
     
