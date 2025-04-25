@@ -138,13 +138,13 @@ class morePersonLikePlugin(Star):
                         # 添加表情
                         if emoji_name in self.emoji_map:
                             emoji_id = self.emoji_map[emoji_name]
-                            new_chain.append(Comp.Face(id=emoji_id))
+                            # new_chain.append(Comp.Face(id=emoji_id))
                             logger.debug(f"替换表情: {emoji_name} -> Face({emoji_id})")
                         else:
                             # 表情名不存在时，保留原文本或使用替代表情
                             # 可以在这里添加逻辑，尝试近似匹配或提供替代表情
                             original_text = match.group(0)
-                            new_chain.append(Comp.Plain(original_text))
+                            # new_chain.append(Comp.Plain(original_text))
                             logger.warning(f"未找到表情: {emoji_name}")
                         
                         last_end = end
