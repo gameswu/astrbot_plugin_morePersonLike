@@ -325,7 +325,8 @@ class morePersonLikePlugin(Star):
 
     @llm_tool(name="read_group_notice")
     async def read_group_notice(self, event: AstrMessageEvent):
-        """读取QQ群公告"""
+        """读取QQ群公告
+        """
         # 读取群组通知的逻辑
         try:
             group_id = event.get_group_id()
