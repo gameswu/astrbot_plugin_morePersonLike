@@ -78,7 +78,7 @@ class morePersonLikePlugin(Star):
         self.group_last_message_time = {}
 
     @llm_tool(name="send_qq_emoji")
-    async def send_qq_emoji(self, event: AstrMessageEvent, emoji: str) -> MessageEventResult:
+    async def send_qq_emoji(self, event: AstrMessageEvent, emoji: str):
         """发送QQ表情
 
         Args:
