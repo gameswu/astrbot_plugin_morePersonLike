@@ -520,6 +520,49 @@ class morePersonLikePlugin(Star):
             logger.error(f"设置好感度时出错: {str(e)}")
             yield event.plain_result("设置好感度时出错，请稍后再试")
 
+    @filter.command("查看好感")
+    async def view_favorability(self, event: AstrMessageEvent):
+        """查看用户的好感度值"""
+        # 如果好感度功能被禁用，直接返回
+        if not self.favorability_enabled:
+            yield event.plain_result("好感度功能已禁用，无法查看好感度")
+        
+        # 获取用户ID
+        user_id = event.get_sender_id()
+        
+        user_id_str = str(user_id)
+        
+        try:
+            favorability_data = {}
+            
+            # 尝试读取现有的好感度数据
+            if os.path.exists(self.favorability_file_path):
+                try:
+                    with open(self.favorability_file_path, 'r', encoding='utf-8') as f:
+                        favorability_data = json.load(f)
+                except (json.JSONDecodeError, FileNotFoundError) as e:
+                    logger.error(f"读取好感度数据失败: {str(e)}")
+                    yield event.plain_result("读取好感度数据失败，无法查看好感度")
+            
+            # 获取用户当前好感度，如果用户不存在则使用初始值
+            current_favorability = favorability_data.get(user_id_str, self.favorability_initial)
+            
+            # 如果用户不存在，将用户添加到好感度数据中
+            if user_id_str not in favorability_data:
+                favorability_data[user_id_str] = self.favorability_initial
+                logger.info(f"用户 {user_id} 首次查询好感度，初始化为 {self.favorability_initial}")
+                
+                # 保存更新后的好感度数据
+                with open(self.favorability_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(favorability_data, f, ensure_ascii=False, indent=4)
+            
+            logger.info(f"用户 {user_id} 的当前好感度: {current_favorability}")
+            yield event.plain_result(f"用户 {user_id} 的当前好感度: {current_favorability}/{self.favorability_max_value}")
+            
+        except Exception as e:
+            logger.error(f"查询好感度时出错: {str(e)}")
+            yield event.plain_result("查询好感度时出错，请稍后再试")
+
     async def terminate(self):
         logger.info("插件已终止")
         return await super().terminate()
