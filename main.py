@@ -478,6 +478,47 @@ class morePersonLikePlugin(Star):
         except Exception as e:
             logger.error(f"查询好感度时出错: {str(e)}")
             return "查询好感度时出错，返回默认值: " + str(self.favorability_initial)
+        
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("设置好感")
+    async def set_favorability(self, event: AstrMessageEvent, user_id: int, favorability: int):
+        """设置用户的好感度值"""
+
+        # 如果好感度功能被禁用，直接返回
+        if not self.favorability_enabled:
+            yield event.plain_result("好感度功能已禁用，无法设置好感度")
+        
+        # 获取用户ID
+        user_id_str = str(user_id)
+        
+        try:
+            favorability_data = {}
+            
+            # 尝试读取现有的好感度数据
+            if os.path.exists(self.favorability_file_path):
+                try:
+                    with open(self.favorability_file_path, 'r', encoding='utf-8') as f:
+                        favorability_data = json.load(f)
+                except (json.JSONDecodeError, FileNotFoundError) as e:
+                    logger.error(f"读取好感度数据失败: {str(e)}")
+                    yield event.plain_result("读取好感度数据失败，无法设置好感度")
+            
+            # 设置新的好感度值，确保在合理范围内
+            new_favorability = min(max(favorability, self.favorability_min_value), self.favorability_max_value)
+            
+            # 更新好感度数据
+            favorability_data[user_id_str] = new_favorability
+            
+            # 保存更新后的好感度数据
+            with open(self.favorability_file_path, 'w', encoding='utf-8') as f:
+                json.dump(favorability_data, f, ensure_ascii=False, indent=4)
+            
+            logger.info(f"管理员设置用户 {user_id} 的好感度为 {new_favorability}")
+            yield event.plain_result(f"用户 {user_id} 的好感度已设置为 {new_favorability}/{self.favorability_max_value}")
+            
+        except Exception as e:
+            logger.error(f"设置好感度时出错: {str(e)}")
+            yield event.plain_result("设置好感度时出错，请稍后再试")
 
     async def terminate(self):
         logger.info("插件已终止")
