@@ -437,13 +437,13 @@ class morePersonLikePlugin(Star):
         """获取当前用户的好感度值"""
         # 如果好感度功能被禁用，直接返回
         if not self.favorability_enabled:
-            return {"favorability": self.favorability_initial, "status": "disabled"}
+            return "好感度功能已禁用，返回默认值: " + str(self.favorability_initial)
         
         # 获取用户ID
         user_id = event.get_sender_id()
         if not user_id:
             logger.warning("无法获取用户ID，好感度查询失败")
-            return {"favorability": self.favorability_initial, "status": "error", "message": "无法获取用户ID"}
+            return "无法获取用户ID，返回默认值: " + str(self.favorability_initial)
         
         try:
             favorability_data = {}
@@ -455,7 +455,7 @@ class morePersonLikePlugin(Star):
                         favorability_data = json.load(f)
                 except (json.JSONDecodeError, FileNotFoundError) as e:
                     logger.error(f"读取好感度数据失败: {str(e)}")
-                    return {"favorability": self.favorability_initial, "status": "error", "message": f"读取好感度数据失败: {str(e)}"}
+                    return "读取好感度数据失败，返回默认值: " + str(self.favorability_initial)
             
             # 获取用户当前好感度，如果用户不存在则使用初始值
             user_id_str = str(user_id)
@@ -471,11 +471,11 @@ class morePersonLikePlugin(Star):
                     json.dump(favorability_data, f, ensure_ascii=False, indent=4)
             
             logger.info(f"用户 {user_id} 的当前好感度: {current_favorability}")
-            return {"favorability": current_favorability, "status": "success"}
+            return f"当前好感度: {current_favorability}/{self.favorability_max_value}"
             
         except Exception as e:
             logger.error(f"查询好感度时出错: {str(e)}")
-            return {"favorability": self.favorability_initial, "status": "error", "message": f"查询好感度时出错: {str(e)}"}
+            return "查询好感度时出错，返回默认值: " + str(self.favorability_initial)
 
     async def terminate(self):
         logger.info("插件已终止")
