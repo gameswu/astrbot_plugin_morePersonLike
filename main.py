@@ -96,7 +96,7 @@ class morePersonLikePlugin(Star):
             
             # 发送QQ表情消息
             try:
-                await event.chain_result([Comp.Face(id=emoji_id)])
+                yield event.chain_result([Comp.Face(id=emoji_id)])
                 logger.info(f"成功发送QQ表情: {emoji}")
             except Exception as e:
                 logger.error(f"发送QQ表情失败: {str(e)}")
