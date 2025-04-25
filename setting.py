@@ -31,7 +31,17 @@ DEFAULT_ACTIVE_MESSAGE_CONFIG = {
 # QQ表情替换功能配置
 DEFAULT_QQ_EMOJI_CONFIG = {
     "is_enable": True
-    }
+}
+
+# 好感度默认配置
+DEFAULT_FAVORABILITY_CONFIG = {
+    "is_enable": True,
+    "initial": 50,
+    "max_value": 100,
+    "min_value": 0,
+    "probability": 0.8,
+    "change_value": 5
+}
 
 def load_config(config):
     """
@@ -60,6 +70,17 @@ def load_config(config):
     qq_emoji_config = config.get("qq_emoji", {})
     result["qq_emoji_config"] = {
         "is_enable": qq_emoji_config.get("is_enable", DEFAULT_QQ_EMOJI_CONFIG["is_enable"])
+    }
+    
+    # 获取好感度配置
+    favorability_config = config.get("favorability", {})
+    result["favorability_config"] = {
+        "is_enable": favorability_config.get("is_enable", DEFAULT_FAVORABILITY_CONFIG["is_enable"]),
+        "initial": favorability_config.get("initial", DEFAULT_FAVORABILITY_CONFIG["initial"]),
+        "max_value": favorability_config.get("max_value", DEFAULT_FAVORABILITY_CONFIG["max_value"]),
+        "min_value": favorability_config.get("min_value", DEFAULT_FAVORABILITY_CONFIG["min_value"]),
+        "probability": favorability_config.get("probability", DEFAULT_FAVORABILITY_CONFIG["probability"]),
+        "change_value": favorability_config.get("change_value", DEFAULT_FAVORABILITY_CONFIG["change_value"])
     }
     
     return result

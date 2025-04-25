@@ -54,6 +54,32 @@ class morePersonLikePlugin(Star):
         emoji_settings = settings["qq_emoji_config"]
         self.emoji_enabled = emoji_settings["is_enable"]
         emoji_file_path = "data/qq_emoji.json"  # 默认的emoji json文件路径
+
+        # 获取好感度配置
+        self.favorability_enabled = settings["favorability_config"]["is_enable"]
+        self.favorability_change_value = settings["favorability_config"]["change_value"]
+        self.favorability_initial = settings["favorability_config"]["initial"]
+        self.favorability_max_value = settings["favorability_config"]["max_value"]
+        self.favorability_min_value = settings["favorability_config"]["min_value"]
+        self.favorability_probability = settings["favorability_config"]["probability"]
+        
+        # 确保好感度数据目录存在
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_dir = os.path.join(current_dir, "data")
+        os.makedirs(data_dir, exist_ok=True)
+        
+        self.favorability_file_path = os.path.join(current_dir, "data", "favorability.json")
+        
+        # 初始化好感度文件，如果文件不存在
+        if not os.path.exists(self.favorability_file_path):
+            try:
+                with open(self.favorability_file_path, 'w', encoding='utf-8') as f:
+                    json.dump({}, f, ensure_ascii=False, indent=4)
+                logger.info(f"已创建好感度数据文件: {self.favorability_file_path}")
+            except Exception as e:
+                logger.error(f"创建好感度数据文件失败: {str(e)}")
+        
+        logger.info(f"好感度功能状态: {'启用' if self.favorability_enabled else '禁用'}，初始值: {self.favorability_initial}，最大值: {self.favorability_max_value}，最小值: {self.favorability_min_value}，概率: {self.favorability_probability}")
         
         # 从JSON文件加载emoji映射表
         try:
@@ -338,6 +364,119 @@ class morePersonLikePlugin(Star):
                 logger.warning("未能获取到有效的群组ID")
         except Exception as e:
             logger.error(f"读取群组通知失败: {str(e)}")
+
+    @filter.on_llm_request()
+    async def add_favorability_prompt(self, event: AstrMessageEvent, req: ProviderRequest):
+        """
+        增加好感度评价的prompt
+        """
+        # 如果好感度功能被禁用，直接返回
+        if not self.favorability_enabled:
+            return
+        req.system_prompt += f"请你首先利用相应的函数工具查询你与用户之间的好感值并根据分数高低给出相应情绪的回应，请注意好感度总分范围为0到{self.favorability_max_value}。并以自己的视角对此前用户的用语评价好感度的变化，范围为从{-self.favorability_change_value}到{self.favorability_change_value}，并使用相应的函数工具记录评分结果。"
+
+    @filter.llm_tool(name="add_favorability")
+    async def add_favorability(self, event: AstrMessageEvent, favorability: int):
+        """增加好感度
+
+        Args:
+            favorability(int): 好感度评分
+        """
+        # 如果好感度功能被禁用，直接返回
+        if not self.favorability_enabled:
+            return
+        
+        # 获取用户ID
+        user_id = event.get_sender_id()
+        if not user_id:
+            logger.warning("无法获取用户ID，好感度更新失败")
+            return
+            
+        # 确保好感度变化值在合理范围内
+        favorability = max(min(favorability, self.favorability_change_value), -self.favorability_change_value)
+        
+        # 读取并更新好感度数据
+        try:
+            favorability_data = {}
+            
+            # 尝试读取现有的好感度数据
+            if os.path.exists(self.favorability_file_path):
+                try:
+                    with open(self.favorability_file_path, 'r', encoding='utf-8') as f:
+                        favorability_data = json.load(f)
+                except (json.JSONDecodeError, FileNotFoundError) as e:
+                    logger.error(f"读取好感度数据失败，将创建新文件: {str(e)}")
+                    favorability_data = {}
+            
+            # 获取用户当前好感度，如果用户不存在则使用初始值
+            user_id_str = str(user_id)  # 确保用户ID是字符串类型
+            current_favorability = favorability_data.get(user_id_str)
+            
+            # 如果用户不存在，初始化好感度值
+            if current_favorability is None:
+                current_favorability = self.favorability_initial
+                logger.info(f"用户 {user_id} 首次获取好感度，初始化为 {self.favorability_initial}")
+            
+            # 计算新的好感度值，确保在合理范围内
+            new_favorability = min(max(current_favorability + favorability, self.favorability_min_value), self.favorability_max_value)
+            
+            # 更新好感度数据
+            favorability_data[user_id_str] = new_favorability
+            
+            # 保存更新后的好感度数据
+            with open(self.favorability_file_path, 'w', encoding='utf-8') as f:
+                json.dump(favorability_data, f, ensure_ascii=False, indent=4)
+            
+            change_type = "增加" if favorability > 0 else "减少"
+            logger.info(f"用户 {user_id} 的好感度{change_type}了 {abs(favorability)}，当前好感度: {new_favorability}")
+            
+        except Exception as e:
+            logger.error(f"更新好感度时出错: {str(e)}")
+    
+    @llm_tool(name="get_favorability")
+    async def get_favorability(self, event: AstrMessageEvent):
+        """获取当前用户的好感度值"""
+        # 如果好感度功能被禁用，直接返回
+        if not self.favorability_enabled:
+            return {"favorability": self.favorability_initial, "status": "disabled"}
+        
+        # 获取用户ID
+        user_id = event.get_sender_id()
+        if not user_id:
+            logger.warning("无法获取用户ID，好感度查询失败")
+            return {"favorability": self.favorability_initial, "status": "error", "message": "无法获取用户ID"}
+        
+        try:
+            favorability_data = {}
+            
+            # 尝试读取现有的好感度数据
+            if os.path.exists(self.favorability_file_path):
+                try:
+                    with open(self.favorability_file_path, 'r', encoding='utf-8') as f:
+                        favorability_data = json.load(f)
+                except (json.JSONDecodeError, FileNotFoundError) as e:
+                    logger.error(f"读取好感度数据失败: {str(e)}")
+                    return {"favorability": self.favorability_initial, "status": "error", "message": f"读取好感度数据失败: {str(e)}"}
+            
+            # 获取用户当前好感度，如果用户不存在则使用初始值
+            user_id_str = str(user_id)
+            current_favorability = favorability_data.get(user_id_str, self.favorability_initial)
+            
+            # 如果用户不存在，将用户添加到好感度数据中
+            if user_id_str not in favorability_data:
+                favorability_data[user_id_str] = self.favorability_initial
+                logger.info(f"用户 {user_id} 首次查询好感度，初始化为 {self.favorability_initial}")
+                
+                # 保存更新后的好感度数据
+                with open(self.favorability_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(favorability_data, f, ensure_ascii=False, indent=4)
+            
+            logger.info(f"用户 {user_id} 的当前好感度: {current_favorability}")
+            return {"favorability": current_favorability, "status": "success"}
+            
+        except Exception as e:
+            logger.error(f"查询好感度时出错: {str(e)}")
+            return {"favorability": self.favorability_initial, "status": "error", "message": f"查询好感度时出错: {str(e)}"}
 
     async def terminate(self):
         logger.info("插件已终止")
