@@ -323,110 +323,20 @@ class morePersonLikePlugin(Star):
         except Exception as e:
             logger.error(f"处理主动消息事件出错: {str(e)}")
 
-    @event_message_type(EventMessageType.GROUP_MESSAGE)
-    async def on_group_notice(self, event: AstrMessageEvent):
-        """
-        处理群公告
-        """
+    @llm_tool(name="read_group_notice")
+    async def read_group_notice(self, event: AstrMessageEvent):
+        """读取QQ群公告"""
+        # 读取群组通知的逻辑
         try:
-            message_data = event.message_obj.raw_message
-            
-            # 检查是否为群消息
-            if message_data.get('message_type') != 'group':
-                return
-                
-            # 提取消息内容
-            message_content = message_data.get('message', [])
-            
-            # 检查是否包含群公告
-            is_group_notice = False
-            notice_text = ""
-            
-            # 遍历消息部分
-            for msg_part in message_content:
-                # 检查是否为json类型（群公告通常以json形式发送）
-                if msg_part.get('type') == 'json':
-                    json_data = msg_part.get('data', {}).get('data', '{}')
-                    try:
-                        # 解析JSON数据
-                        json_obj = json.loads(json_data)
-                        
-                        # 检查是否包含群公告app标识
-                        if json_obj.get('app') == 'com.tencent.mannounce':
-                            # 找到了群公告
-                            is_group_notice = True
-                            
-                            # 尝试从prompt字段提取公告内容
-                            if 'prompt' in json_obj:
-                                prompt_text = json_obj['prompt']
-                                # 提取[群公告]后的内容
-                                if '[群公告]' in prompt_text:
-                                    notice_text = prompt_text.split('[群公告]', 1)[1].strip()
-                                else:
-                                    notice_text = prompt_text.strip()
-                            
-                            # 如果prompt中没有实质内容，尝试从meta.mannounce.text中提取
-                            if not notice_text and 'meta' in json_obj and 'mannounce' in json_obj['meta']:
-                                # 群公告内容可能是base64编码的
-                                mannounce_text = json_obj['meta']['mannounce'].get('text', '')
-                                if mannounce_text:
-                                    try:
-                                        import base64
-                                        # 尝试解码base64内容
-                                        decoded_text = base64.b64decode(mannounce_text).decode('utf-8')
-                                        notice_text = decoded_text.strip()
-                                    except Exception as e:
-                                        logger.error(f"解码群公告内容失败: {str(e)}")
-                                        notice_text = mannounce_text  # 使用原始内容
-                                        
-                    except json.JSONDecodeError:
-                        logger.error("解析群公告JSON数据失败")
-                        continue
-                
-                # 检查是否为文本类型，且包含群公告的标识
-                elif msg_part.get('type') == 'text':
-                    text_content = msg_part.get('data', {}).get('text', '')
-                    if '群公告' in text_content:
-                        # 这可能是一个群公告消息的文本部分
-                        is_group_notice = True
-                        
-                        # 尝试提取公告内容
-                        if '[分享] 不支持的消息类型' not in text_content:
-                            # 如果有实质内容(不是"不支持的消息类型")
-                            notice_text = text_content.strip()
-            
-            # 如果确实是群公告且成功提取到内容
-            if is_group_notice and notice_text:
-                group_id = message_data.get('group_id')
-                sender_id = message_data.get('user_id')
-                logger.info(f"收到群 {group_id} 的公告，内容: {notice_text}")
-                
-                # 构建提示词
-                prompt = f"你看到了一条新的群公告，内容是: \"{notice_text}\"。请你对这条公告做出适当的回应，可以是确认收到、表达理解、提问澄清或其他合适的回应。"
-                
-                try:
-                    # 获取对话ID和上下文
-                    curr_cid = await self.context.conversation_manager.get_curr_conversation_id(event.unified_msg_origin)
-                    conversation = None
-                    context = []
-                    if curr_cid:
-                        conversation = await self.context.conversation_manager.get_conversation(event.unified_msg_origin, curr_cid)
-                        if conversation and hasattr(conversation, 'history') and conversation.history:
-                            context = json.loads(conversation.history)
-                            
-                    # 请求LLM生成回应
-                    yield event.request_llm(
-                        prompt=prompt,
-                        func_tool_manager=self.context.get_llm_tool_manager(),
-                        contexts=context,
-                        conversation=conversation
-                    )
-                except Exception as e:
-                    logger.error(f"处理群公告时出错: {str(e)}")
-                    # 发送一个简单的确认回复
-                    yield event.plain_result(f"收到群公告: {notice_text}")
+            group_id = event.get_group_id()
+            if group_id:
+                # 获取群组通知
+                notice = await event.bot.api.call_action('_get_group_notice', group_id=group_id)
+                return notice
+            else:
+                logger.warning("未能获取到有效的群组ID")
         except Exception as e:
-            logger.error(f"解析群公告消息时出错: {str(e)}")
+            logger.error(f"读取群组通知失败: {str(e)}")
 
     async def terminate(self):
         logger.info("插件已终止")
