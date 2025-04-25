@@ -372,14 +372,14 @@ class morePersonLikePlugin(Star):
         # 如果好感度功能被禁用，直接返回
         if not self.favorability_enabled:
             return
-        req.system_prompt += f"请你首先利用相应的函数工具查询你与用户之间的好感值并根据分数高低给出相应情绪的回应，请注意好感度总分范围为0到{self.favorability_max_value}。并以自己的视角对此前用户的用语评价好感度的变化，范围为从{-self.favorability_change_value}到{self.favorability_change_value}，并使用相应的函数工具记录评分结果。"
+        req.system_prompt += f"请你首先利用相应的函数工具查询你与用户之间的好感值并根据分数高低给出相应情绪的回应，请注意好感度总分范围为0到{self.favorability_max_value}。并以自己的视角对此前用户的用语评价好感度的变化，范围为从{-self.favorability_change_value}到{self.favorability_change_value}的整数，并使用相应的函数工具记录评分结果。"
 
     @filter.llm_tool(name="add_favorability")
     async def add_favorability(self, event: AstrMessageEvent, favorability: int):
         """增加好感度
 
         Args:
-            favorability(int): 好感度评分
+            favorability(number): 好感度评分
         """
         # 如果好感度功能被禁用，直接返回
         if not self.favorability_enabled:
