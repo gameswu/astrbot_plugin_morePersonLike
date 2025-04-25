@@ -322,6 +322,40 @@ class morePersonLikePlugin(Star):
         
         except Exception as e:
             logger.error(f"处理主动消息事件出错: {str(e)}")
+
+    @event_message_type(EventMessageType.GROUP_MESSAGE)
+    async def on_group_notice(self, event: AstrMessageEvent):
+        """
+        处理群公告
+        """
+        message_data = event.message_obj.raw_message
+        if message_data.get('post_type') == 'notice' and \
+             message_data.get('notice_type') == 'group' and \
+             message_data.get('sub_type') == 'set':
+            group_id = message_data.get('group_id')
+            logger.info(f"群 {group_id} 设置了公告")
+            
+            # 将群公告的内容传递给LLM
+            context = message_data.get('content')
+            if context:
+                try:
+                    # 获取对话ID和上下文
+                    curr_cid = await self.context.conversation_manager.get_curr_conversation_id(event.unified_msg_origin)
+                    conversation = None
+                    context = []
+                    if curr_cid:
+                        conversation = await self.context.conversation_manager.get_conversation(event.unified_msg_origin, curr_cid)
+                        if conversation and hasattr(conversation, 'history') and conversation.history:
+                            context = json.loads(conversation.history)
+                            
+                    yield event.request_llm(
+                        prompt=context,
+                        func_tool_manager=self.context.get_llm_tool_manager(),
+                        contexts=context,
+                        conversation=conversation
+                    )
+                except Exception as e:
+                    logger.error(f"处理群公告时出错: {str(e)}")
     
     async def terminate(self):
         logger.info("插件已终止")
