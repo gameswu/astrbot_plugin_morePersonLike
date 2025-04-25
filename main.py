@@ -53,8 +53,6 @@ class morePersonLikePlugin(Star):
         # 获取QQ表情配置
         emoji_settings = settings["qq_emoji_config"]
         self.emoji_enabled = emoji_settings["is_enable"]
-        self.emoji_prompt = emoji_settings["qq_emoji_prompt"]
-        self.emoji_regex = emoji_settings["regular_expression"]
         emoji_file_path = "data/qq_emoji.json"  # 默认的emoji json文件路径
         
         # 从JSON文件加载emoji映射表
@@ -79,90 +77,31 @@ class morePersonLikePlugin(Star):
         # 用于跟踪每个群的最后消息时间
         self.group_last_message_time = {}
 
-    @filter.on_llm_request()
-    async def qq_emoji_prompt(self, event: AstrMessageEvent, req: ProviderRequest):
-        """
-        处理LLM请求，添加QQ表情提示
-        """
-        # 如果QQ表情功能被禁用，直接返回
-        if not getattr(self, "emoji_enabled", True):
-            return
-            
-        try:
-            req.system_prompt += self.emoji_prompt
-            logger.info(f"添加QQ表情提示: {self.emoji_prompt}")
-        except Exception as e:
-            logger.error(f"处理LLM请求时出错: {str(e)}")
-    
-    @filter.on_decorating_result()
-    async def qq_emoji(self, event: AstrMessageEvent) -> MessageEventResult:
-        """
-        按照正则匹配规则，替换为对应的QQ表情
+    @llm_tool(name="send_qq_emoji")
+    async def send_qq_emoji(self, event: AstrMessageEvent, emoji: str) -> MessageEventResult:
+        """发送QQ表情
+
+        Args:
+            emoji(string): qq表情的名称
         """
         # 如果QQ表情功能被禁用，直接返回
-        if not getattr(self, "emoji_enabled", True):
+        if not self.emoji_enabled:
             return
+        
+        # 检查emoji是否在映射表中
+        if emoji in self.emoji_map:
+            # 获取对应的QQ表情ID
+            emoji_id = self.emoji_map[emoji]
+            logger.info(f"发送QQ表情: {emoji} (ID: {emoji_id})")
             
-        try:
-            # 获取消息内容
-            message = event.get_result()  # 使用传入的result参数而不是从event获取
-            chain = message.chain
-            new_chain = []
-            
-            # 处理消息链中的每个组件
-            for component in chain:
-                # 只处理Plain文本组件
-                if isinstance(component, Comp.Plain):
-                    text = component.text
-                    # 使用配置中的正则表达式查找所有的表情格式
-                    pattern = self.emoji_regex
-                    matches = list(re.finditer(pattern, text))
-                    
-                    if not matches:
-                        # 如果没有匹配项，直接添加原组件
-                        new_chain.append(component)
-                        continue
-                    
-                    # 处理匹配项
-                    last_end = 0
-                    for match in matches:
-                        start, end = match.span()
-                        emoji_name = match.group(1)  # 假设正则表达式的第一个捕获组是表情名称
-                        
-                        # 添加表情前的文本
-                        if start > last_end:
-                            prefix_text = text[last_end:start]
-                            if prefix_text:
-                                new_chain.append(Comp.Plain(prefix_text))
-                        
-                        # 添加表情
-                        if emoji_name in self.emoji_map:
-                            emoji_id = self.emoji_map[emoji_name]
-                            # new_chain.append(Comp.Face(id=emoji_id))
-                            logger.debug(f"替换表情: {emoji_name} -> Face({emoji_id})")
-                        else:
-                            # 表情名不存在时，保留原文本或使用替代表情
-                            # 可以在这里添加逻辑，尝试近似匹配或提供替代表情
-                            original_text = match.group(0)
-                            # new_chain.append(Comp.Plain(original_text))
-                            logger.warning(f"未找到表情: {emoji_name}")
-                        
-                        last_end = end
-                    
-                    # 添加最后一个表情后的文本
-                    if last_end < len(text):
-                        suffix_text = text[last_end:]
-                        if suffix_text:
-                            new_chain.append(Comp.Plain(suffix_text))
-                else:
-                    # 非Plain组件直接添加
-                    new_chain.append(component)
-            
-            # 将处理后的chain重新赋值给消息
-            message.chain = new_chain
-            logger.debug(f"处理后的消息链: {message.chain}")  # 改为debug级别，减少日志输出
-        except Exception as e:
-            logger.error(f"处理QQ表情时出错: {str(e)}")
+            # 发送QQ表情消息
+            try:
+                await event.chain_result([Comp.Face(id=emoji_id)])
+                logger.info(f"成功发送QQ表情: {emoji}")
+            except Exception as e:
+                logger.error(f"发送QQ表情失败: {str(e)}")
+        else:
+            logger.warning(f"未找到QQ表情映射: {emoji}")
             
     @event_message_type(EventMessageType.GROUP_MESSAGE)
     async def track_group_message(self, event: AstrMessageEvent):

@@ -30,9 +30,7 @@ DEFAULT_ACTIVE_MESSAGE_CONFIG = {
 
 # QQ表情替换功能配置
 DEFAULT_QQ_EMOJI_CONFIG = {
-    "is_enable": True,
-    "qq_emoji_prompt": "当你需要使用QQ表情时，请使用{qq_emoji:名称}的标签格式，例如，请注意当你这样使用时真的可以发出QQ表情：\n你好{qq_emoji:得意} -> 你好+得意的qq表情",
-    "regular_expression": "\\{qq_emoji:(.*?)\\}"  # 用于匹配QQ表情的正则表达式
+    "is_enable": True
     }
 
 def load_config(config):
@@ -61,9 +59,7 @@ def load_config(config):
     # 获取QQ表情配置
     qq_emoji_config = config.get("qq_emoji", {})
     result["qq_emoji_config"] = {
-        "is_enable": qq_emoji_config.get("is_enable", DEFAULT_QQ_EMOJI_CONFIG["is_enable"]),
-        "qq_emoji_prompt": qq_emoji_config.get("qq_emoji_prompt", DEFAULT_QQ_EMOJI_CONFIG["qq_emoji_prompt"]),
-        "regular_expression": qq_emoji_config.get("regular_expression", DEFAULT_QQ_EMOJI_CONFIG["regular_expression"])
+        "is_enable": qq_emoji_config.get("is_enable", DEFAULT_QQ_EMOJI_CONFIG["is_enable"])
     }
     
     return result
