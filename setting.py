@@ -39,7 +39,6 @@ DEFAULT_FAVORABILITY_CONFIG = {
     "initial": 50,
     "max_value": 100,
     "min_value": 0,
-    "probability": 0.8,
     "change_value": 5
 }
 

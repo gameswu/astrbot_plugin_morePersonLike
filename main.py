@@ -78,7 +78,7 @@ class morePersonLikePlugin(Star):
             except Exception as e:
                 logger.error(f"创建好感度数据文件失败: {str(e)}")
         
-        logger.info(f"好感度功能状态: {'启用' if self.favorability_enabled else '禁用'}，初始值: {self.favorability_initial}，最大值: {self.favorability_max_value}，最小值: {self.favorability_min_value}，概率: {self.favorability_probability}")
+        logger.info(f"好感度功能状态: {'启用' if self.favorability_enabled else '禁用'}，初始值: {self.favorability_initial}，最大值: {self.favorability_max_value}，最小值: {self.favorability_min_value}")
         
         # 从JSON文件加载emoji映射表
         try:
