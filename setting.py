@@ -79,7 +79,6 @@ def load_config(config):
         "initial": favorability_config.get("initial", DEFAULT_FAVORABILITY_CONFIG["initial"]),
         "max_value": favorability_config.get("max_value", DEFAULT_FAVORABILITY_CONFIG["max_value"]),
         "min_value": favorability_config.get("min_value", DEFAULT_FAVORABILITY_CONFIG["min_value"]),
-        "probability": favorability_config.get("probability", DEFAULT_FAVORABILITY_CONFIG["probability"]),
         "change_value": favorability_config.get("change_value", DEFAULT_FAVORABILITY_CONFIG["change_value"])
     }
     

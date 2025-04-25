@@ -73,18 +73,13 @@
             },
             "max_value": {
                 "type": "int",
-                "description": "最大好感度值，超过这个值触发忽视概率",
+                "description": "最大好感度值",
                 "default": 100
             },
             "min_value": {
                 "type": "int",
-                "description": "最小好感度值，低于这个值触发忽视概率",
+                "description": "最小好感度值",
                 "default": 0
-            },
-            "probability": {
-                "type": "float",
-                "description": "忽视概率",
-                "default": 0.8
             },
             "change_value": {
                 "type": "int",

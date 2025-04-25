@@ -16,7 +16,7 @@ from typing import List, Dict, Any, Optional
 # 导入设置文件
 from .setting import FALLBACK_RESPONSES, load_config
 
-@register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化", "0.1.2b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
+@register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化", "0.1.3b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
 class morePersonLikePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -61,7 +61,6 @@ class morePersonLikePlugin(Star):
         self.favorability_initial = settings["favorability_config"]["initial"]
         self.favorability_max_value = settings["favorability_config"]["max_value"]
         self.favorability_min_value = settings["favorability_config"]["min_value"]
-        self.favorability_probability = settings["favorability_config"]["probability"]
         
         # 确保好感度数据目录存在
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -433,7 +432,7 @@ class morePersonLikePlugin(Star):
         except Exception as e:
             logger.error(f"更新好感度时出错: {str(e)}")
     
-    @llm_tool(name="get_favorability")
+    @filter.llm_tool(name="get_favorability")
     async def get_favorability(self, event: AstrMessageEvent):
         """获取当前用户的好感度值"""
         # 如果好感度功能被禁用，直接返回
