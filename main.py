@@ -74,30 +74,18 @@ class morePersonLikePlugin(Star):
         self.long_term_memory_enabled = settings["long_term_memory_config"]["is_enable"]
         self.long_term_memory_max = settings["long_term_memory_config"]["max_memory"]
         
-        # 获取插件主文件夹的父目录
+        # 获取插件主文件夹的父目录的父目录（更上一级）
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(current_dir)
+        parent_dir = os.path.dirname(current_dir)  # 插件目录的父目录
+        grandparent_dir = os.path.dirname(parent_dir)  # 再往上一级
         
-        # 创建 morePersonLike 文件夹
-        data_dir = os.path.join(parent_dir, "morePersonLike")
+        # 创建数据存储文件夹（在更上一级目录）
+        data_dir = os.path.join(grandparent_dir, "morePersonLike")
         os.makedirs(data_dir, exist_ok=True)
         logger.info(f"数据存储目录: {data_dir}")
         
-        # 设置好感度文件路径
+        # 设置好感度和长期记忆文件路径
         self.favorability_file_path = os.path.join(data_dir, "favorability.json")
-        
-        # 初始化好感度文件，如果文件不存在
-        if not os.path.exists(self.favorability_file_path):
-            try:
-                with open(self.favorability_file_path, 'w', encoding='utf-8') as f:
-                    json.dump({}, f, ensure_ascii=False, indent=4)
-                logger.info(f"已创建好感度数据文件: {self.favorability_file_path}")
-            except Exception as e:
-                logger.error(f"创建好感度数据文件失败: {str(e)}")
-        
-        logger.info(f"好感度功能状态: {'启用' if self.favorability_enabled else '禁用'}，初始值: {self.favorability_initial}，最大值: {self.favorability_max_value}，最小值: {self.favorability_min_value}")
-
-        # 设置长期记忆文件路径
         self.long_term_memory_file_path = os.path.join(data_dir, "long_term_memory.json")
 
         # 如果文件不存在，创建空的JSON文件
