@@ -24,7 +24,7 @@ except ImportError:
 # 导入设置文件
 from .setting import FALLBACK_RESPONSES, load_config
 
-@register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化", "0.2.0b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
+@register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化", "0.2.1b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
 class morePersonLikePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -74,12 +74,17 @@ class morePersonLikePlugin(Star):
         self.long_term_memory_enabled = settings["long_term_memory_config"]["is_enable"]
         self.long_term_memory_max = settings["long_term_memory_config"]["max_memory"]
         
-        # 确保好感度数据目录存在
+        # 获取插件主文件夹的父目录
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        data_dir = os.path.join(current_dir, "data")
-        os.makedirs(data_dir, exist_ok=True)
+        parent_dir = os.path.dirname(current_dir)
         
-        self.favorability_file_path = os.path.join(current_dir, "data", "favorability.json")
+        # 创建 morePersonLike 文件夹
+        data_dir = os.path.join(parent_dir, "morePersonLike")
+        os.makedirs(data_dir, exist_ok=True)
+        logger.info(f"数据存储目录: {data_dir}")
+        
+        # 设置好感度文件路径
+        self.favorability_file_path = os.path.join(data_dir, "favorability.json")
         
         # 初始化好感度文件，如果文件不存在
         if not os.path.exists(self.favorability_file_path):
@@ -92,13 +97,8 @@ class morePersonLikePlugin(Star):
         
         logger.info(f"好感度功能状态: {'启用' if self.favorability_enabled else '禁用'}，初始值: {self.favorability_initial}，最大值: {self.favorability_max_value}，最小值: {self.favorability_min_value}")
 
-        # 确保长期记忆数据目录存在
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        long_term_memory_data_dir = os.path.join(current_dir, "data")
-        os.makedirs(long_term_memory_data_dir, exist_ok=True)
-
-        # 初始化长期记忆文件路径
-        self.long_term_memory_file_path = os.path.join(long_term_memory_data_dir, "long_term_memory.json")
+        # 设置长期记忆文件路径
+        self.long_term_memory_file_path = os.path.join(data_dir, "long_term_memory.json")
 
         # 如果文件不存在，创建空的JSON文件
         if not os.path.exists(self.long_term_memory_file_path):
