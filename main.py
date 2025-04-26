@@ -595,7 +595,7 @@ class morePersonLikePlugin(Star):
             logger.error(f"查询好感度时出错: {str(e)}")
             yield event.plain_result("查询好感度时出错，请稍后再试")
     
-    async def _save_long_term_memory(self, event: AstrMessageEvent, score: int, content: str):
+    async def _save_long_term_memory(self, event: AstrMessageEvent, importance: int, query: str):
         """
         保存长期记忆
         """
@@ -628,14 +628,14 @@ class morePersonLikePlugin(Star):
             # 检查当前用户的长期记忆数据是否已满
             while user_memory["num"] >= self.long_term_memory_max:
                 # 优先删除评分最低的记忆，若有多个，则删除最早的直到剩下max - 1个
-                user_memory["data"].sort(key=lambda x: (x["score"], x["time"]))
+                user_memory["data"].sort(key=lambda x: (x["importance"], x["time"]))
                 # 删除评分最低的记忆
                 user_memory["data"].pop(0)
                 user_memory["num"] -= 1
             # 添加新的记忆
             new_memory = {
-                "score": score,
-                "content": content,
+                "importance": importance,
+                "query": query,
                 "time": current_time
             }
             user_memory["data"].append(new_memory)
@@ -661,20 +661,20 @@ class morePersonLikePlugin(Star):
         req.system_prompt += f"要求在每一次对话中你都必须首先对用户之前的对话进行回顾决定是否需要进行长期记忆，如果需要长期记忆请提取出需要记忆的内容并对重要性进行评分。在回答用户之前需要在长期记忆内查询相应的内容后再做出回答。"
 
     @filter.llm_tool(name="save_memory")
-    async def save_memory(self, event: AstrMessageEvent, score: int, content: str):
+    async def save_memory(self, event: AstrMessageEvent, importance: int, query: str):
         """保存记忆内容
 
         Args:
-            score(number): 记忆重要性评分
-            content(string): 记忆内容
+            importance(number): 记忆重要性评分
+            query(string): 记忆内容
         """
         # 如果长期记忆功能被禁用，直接返回
         if not self.long_term_memory_enabled:
             return
             
         # 调用保存长期记忆的方法
-        await self._save_long_term_memory(event, score, content)
-        return f"我已经保存了这条记忆，重要性评分为 {score}，内容为: {content}"
+        await self._save_long_term_memory(event, importance, query)
+        return f"我已经保存了这条记忆，重要性评分为 {importance}，内容为: {query}"
     
     @filter.llm_tool(name="query_memory")
     async def query_memory(self, event: AstrMessageEvent, query: str):
@@ -724,7 +724,7 @@ class morePersonLikePlugin(Star):
             # 获取匹配的记忆内容，带匹配程度评分
             matched_memories_with_score = []
             for memory in user_memory.get("data", []):
-                memory_content = memory["content"].lower()
+                memory_content = memory["query"].lower()
                 
                 # 计算匹配分数
                 match_score = 0
@@ -752,7 +752,7 @@ class morePersonLikePlugin(Star):
                     matched_memories_with_score.append((memory, match_score))
             
             # 按匹配分数和重要性排序
-            matched_memories_with_score.sort(key=lambda x: (x[1], x[0]["score"]), reverse=True)
+            matched_memories_with_score.sort(key=lambda x: (x[1], x[0]["importance"]), reverse=True)
             
             # 返回匹配的记忆内容
             if matched_memories_with_score:
@@ -760,7 +760,7 @@ class morePersonLikePlugin(Star):
                 matched_memories = matched_memories[:self.long_term_memory_max]
                 # 格式化输出
                 formatted_memories = [
-                    f"记忆内容: {memory['content']}, 重要性评分: {memory['score']}, 时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(memory['time']))}"
+                    f"记忆内容: {memory['query']}, 重要性评分: {memory['importance']}, 时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(memory['time']))}"
                     for memory in matched_memories
                 ]
                 # 返回匹配的记忆
