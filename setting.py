@@ -42,6 +42,12 @@ DEFAULT_FAVORABILITY_CONFIG = {
     "change_value": 5
 }
 
+# 长期记忆默认配置
+DEFAULT_LONG_TERM_MEMORY_CONFIG = {
+    "is_enable": True,
+    "max_memory": 1000
+}
+
 def load_config(config):
     """
     从AstrBotConfig加载配置，并合并默认配置
@@ -79,6 +85,13 @@ def load_config(config):
         "max_value": favorability_config.get("max_value", DEFAULT_FAVORABILITY_CONFIG["max_value"]),
         "min_value": favorability_config.get("min_value", DEFAULT_FAVORABILITY_CONFIG["min_value"]),
         "change_value": favorability_config.get("change_value", DEFAULT_FAVORABILITY_CONFIG["change_value"])
+    }
+
+    # 获取长期记忆配置
+    long_term_memory_config = config.get("long_term_memory", {})
+    result["long_term_memory_config"] = {
+        "is_enable": long_term_memory_config.get("is_enable", DEFAULT_LONG_TERM_MEMORY_CONFIG["is_enable"]),
+        "max_memory": long_term_memory_config.get("max_memory", DEFAULT_LONG_TERM_MEMORY_CONFIG["max_memory"])
     }
     
     return result

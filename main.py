@@ -13,10 +13,18 @@ import re
 import os
 from typing import List, Dict, Any, Optional
 
+# 尝试导入jieba分词库，如果不可用则使用基本分词
+try:
+    import jieba
+    JIEBA_AVAILABLE = True
+except ImportError:
+    JIEBA_AVAILABLE = False
+    logger.warning("未安装jieba分词库，将使用基本分词方法")
+
 # 导入设置文件
 from .setting import FALLBACK_RESPONSES, load_config
 
-@register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化", "0.1.3b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
+@register("morePersonLike", "gameswu", "用于帮助缺少多模态能力的llm更加拟人化", "0.2.0b", "https://github.com/gameswu/astrbot_plugin_morePersonLike")
 class morePersonLikePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -61,6 +69,10 @@ class morePersonLikePlugin(Star):
         self.favorability_initial = settings["favorability_config"]["initial"]
         self.favorability_max_value = settings["favorability_config"]["max_value"]
         self.favorability_min_value = settings["favorability_config"]["min_value"]
+
+        # 获取长期记忆配置
+        self.long_term_memory_enabled = settings["long_term_memory_config"]["is_enable"]
+        self.long_term_memory_max = settings["long_term_memory_config"]["max_memory"]
         
         # 确保好感度数据目录存在
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -79,7 +91,26 @@ class morePersonLikePlugin(Star):
                 logger.error(f"创建好感度数据文件失败: {str(e)}")
         
         logger.info(f"好感度功能状态: {'启用' if self.favorability_enabled else '禁用'}，初始值: {self.favorability_initial}，最大值: {self.favorability_max_value}，最小值: {self.favorability_min_value}")
-        
+
+        # 确保长期记忆数据目录存在
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        long_term_memory_data_dir = os.path.join(current_dir, "data")
+        os.makedirs(long_term_memory_data_dir, exist_ok=True)
+
+        # 初始化长期记忆文件路径
+        self.long_term_memory_file_path = os.path.join(long_term_memory_data_dir, "long_term_memory.json")
+
+        # 如果文件不存在，创建空的JSON文件
+        if not os.path.exists(self.long_term_memory_file_path):
+            try:
+                with open(self.long_term_memory_file_path, 'w', encoding='utf-8') as f:
+                    json.dump({}, f, ensure_ascii=False, indent=4)
+                logger.info(f"已创建长期记忆数据文件: {self.long_term_memory_file_path}")
+            except Exception as e:
+                logger.error(f"创建长期记忆数据文件失败: {str(e)}")
+
+        logger.info(f"长期记忆功能状态: {'启用' if self.long_term_memory_enabled else '禁用'}，最大记忆数: {self.long_term_memory_max}")
+
         # 从JSON文件加载emoji映射表
         try:
             # 获取当前文件所在目录
@@ -521,14 +552,15 @@ class morePersonLikePlugin(Star):
             yield event.plain_result("设置好感度时出错，请稍后再试")
 
     @filter.command("查看好感")
-    async def view_favorability(self, event: AstrMessageEvent):
+    async def view_favorability(self, event: AstrMessageEvent, user_id: int = None):
         """查看用户的好感度值"""
         # 如果好感度功能被禁用，直接返回
         if not self.favorability_enabled:
             yield event.plain_result("好感度功能已禁用，无法查看好感度")
         
-        # 获取用户ID
-        user_id = event.get_sender_id()
+        # 如果未提供用户ID，则获取发送者ID
+        if user_id is None:
+            user_id = event.get_sender_id()
         
         user_id_str = str(user_id)
         
@@ -562,7 +594,186 @@ class morePersonLikePlugin(Star):
         except Exception as e:
             logger.error(f"查询好感度时出错: {str(e)}")
             yield event.plain_result("查询好感度时出错，请稍后再试")
+    
+    async def _save_long_term_memory(self, event: AstrMessageEvent, score: int, content: str):
+        """
+        保存长期记忆
+        """
+        user_id = event.get_sender_id()
+        if not user_id:
+            logger.warning("无法获取用户ID，长期记忆保存失败")
+            return
+        try:
+            # 尝试读取现有的长期记忆数据
+            long_term_memory_data = {}
+            if os.path.exists(self.long_term_memory_file_path):
+                try:
+                    with open(self.long_term_memory_file_path, 'r', encoding='utf-8') as f:
+                        long_term_memory_data = json.load(f)
+                except (json.JSONDecodeError, FileNotFoundError) as e:
+                    logger.error(f"读取长期记忆数据失败: {str(e)}")
+                    long_term_memory_data = {}
+            # 获取当前时间戳
+            current_time = int(time.time())
+            # 检查是否已经存在该用户的长期记忆数据
+            user_id_str = str(user_id)
+            if user_id_str not in long_term_memory_data:
+                long_term_memory_data[user_id_str] = {
+                    "user_id": user_id,
+                    "num": 0,
+                    "data": []
+                }
+            # 获取当前用户的长期记忆数据
+            user_memory = long_term_memory_data[user_id_str]
+            # 检查当前用户的长期记忆数据是否已满
+            while user_memory["num"] >= self.long_term_memory_max:
+                # 优先删除评分最低的记忆，若有多个，则删除最早的直到剩下max - 1个
+                user_memory["data"].sort(key=lambda x: (x["score"], x["time"]))
+                # 删除评分最低的记忆
+                user_memory["data"].pop(0)
+                user_memory["num"] -= 1
+            # 添加新的记忆
+            new_memory = {
+                "score": score,
+                "content": content,
+                "time": current_time
+            }
+            user_memory["data"].append(new_memory)
+            user_memory["num"] += 1
+            # 更新长期记忆数据
+            long_term_memory_data[user_id_str] = user_memory
+            # 保存更新后的长期记忆数据
+            with open(self.long_term_memory_file_path, 'w', encoding='utf-8') as f:
+                json.dump(long_term_memory_data, f, ensure_ascii=False, indent=4)
+            logger.info(f"用户 {user_id} 的长期记忆已更新，当前记忆数: {user_memory['num']}")
+        except Exception as e:
+            logger.error(f"保存长期记忆时出错: {str(e)}")
 
+    @filter.on_llm_request()
+    async def add_long_term_memory_prompt(self, event: AstrMessageEvent, req: ProviderRequest):
+        """
+        增加长期记忆评价的prompt
+        """
+        # 如果长期记忆功能被禁用，直接返回
+        if not self.long_term_memory_enabled:
+            return
+            
+        req.system_prompt += f"要求在每一次对话中你都必须首先对用户之前的对话进行回顾决定是否需要进行长期记忆，如果需要长期记忆请提取出需要记忆的内容并对重要性进行评分。在回答用户之前需要在长期记忆内查询相应的内容后再做出回答。"
+
+    @filter.llm_tool(name="save_memory")
+    async def save_memory(self, event: AstrMessageEvent, score: int, content: str):
+        """保存记忆内容
+
+        Args:
+            score(number): 记忆重要性评分
+            content(string): 记忆内容
+        """
+        # 如果长期记忆功能被禁用，直接返回
+        if not self.long_term_memory_enabled:
+            return
+            
+        # 调用保存长期记忆的方法
+        await self._save_long_term_memory(event, score, content)
+        return f"我已经保存了这条记忆，重要性评分为 {score}，内容为: {content}"
+    
+    @filter.llm_tool(name="query_memory")
+    async def query_memory(self, event: AstrMessageEvent, query: str):
+        """获取匹配的记忆内容
+
+        Args:
+            query(string): 查询的内容
+        """
+        # 如果长期记忆功能被禁用，直接返回
+        if not self.long_term_memory_enabled:
+            return
+            
+        user_id = event.get_sender_id()
+        if not user_id:
+            logger.warning("无法获取用户ID，长期记忆查询失败")
+            return
+        
+        # 采用更智能的模糊匹配方式获取记忆
+        try:
+            # 尝试读取现有的长期记忆数据
+            long_term_memory_data = {}
+            if os.path.exists(self.long_term_memory_file_path):
+                try:
+                    with open(self.long_term_memory_file_path, 'r', encoding='utf-8') as f:
+                        long_term_memory_data = json.load(f)
+                except (json.JSONDecodeError, FileNotFoundError) as e:
+                    logger.error(f"读取长期记忆数据失败: {str(e)}")
+                    long_term_memory_data = {}
+            # 获取当前用户的长期记忆数据
+            user_id_str = str(user_id)
+            user_memory = long_term_memory_data.get(user_id_str, {})
+            
+            # 将查询分解为关键词，使用jieba处理中文
+            if JIEBA_AVAILABLE:
+                # 检测查询是否包含中文字符
+                if re.search(r'[\u4e00-\u9fff]', query):
+                    # 对中文使用jieba分词
+                    keywords = [word for word in jieba.cut(query.lower()) if word.strip()]
+                    logger.debug(f"使用jieba分词处理中文查询: {keywords}")
+                else:
+                    # 非中文内容使用空格分割
+                    keywords = query.lower().split()
+            else:
+                # 如果jieba不可用，回退到基本分割
+                keywords = query.lower().split()
+            
+            # 获取匹配的记忆内容，带匹配程度评分
+            matched_memories_with_score = []
+            for memory in user_memory.get("data", []):
+                memory_content = memory["content"].lower()
+                
+                # 计算匹配分数
+                match_score = 0
+                exact_match = False
+                
+                # 检查完全匹配
+                if query.lower() in memory_content:
+                    match_score += 10
+                    exact_match = True
+                
+                # 检查关键词匹配
+                matched_keywords = 0
+                for keyword in keywords:
+                    if keyword in memory_content:
+                        matched_keywords += 1
+                
+                # 如果有关键词匹配，计算匹配率
+                if len(keywords) > 0:
+                    keyword_match_rate = matched_keywords / len(keywords)
+                    match_score += keyword_match_rate * 5
+                
+                # 添加基本分数，确保有部分匹配的也能被找到
+                if matched_keywords > 0 or exact_match:
+                    # 保存记忆和匹配分数
+                    matched_memories_with_score.append((memory, match_score))
+            
+            # 按匹配分数和重要性排序
+            matched_memories_with_score.sort(key=lambda x: (x[1], x[0]["score"]), reverse=True)
+            
+            # 返回匹配的记忆内容
+            if matched_memories_with_score:
+                matched_memories = [item[0] for item in matched_memories_with_score]
+                matched_memories = matched_memories[:self.long_term_memory_max]
+                # 格式化输出
+                formatted_memories = [
+                    f"记忆内容: {memory['content']}, 重要性评分: {memory['score']}, 时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(memory['time']))}"
+                    for memory in matched_memories
+                ]
+                # 返回匹配的记忆
+                logger.info(f"找到 {len(formatted_memories)} 条匹配的长期记忆")
+                # 返回匹配的记忆内容
+                return "\n".join(formatted_memories)
+                
+            else:
+                return "没有找到匹配的长期记忆"
+        except Exception as e:
+            logger.error(f"查询长期记忆时出错: {str(e)}")
+            return "查询长期记忆时出错，请稍后再试"
+        
     async def terminate(self):
         logger.info("插件已终止")
         return await super().terminate()
