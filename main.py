@@ -633,7 +633,7 @@ class morePersonLikePlugin(Star):
             # 保存更新后的长期记忆数据
             with open(self.long_term_memory_file_path, 'w', encoding='utf-8') as f:
                 json.dump(long_term_memory_data, f, ensure_ascii=False, indent=4)
-            logger.info(f"用户 {user_id} 的长期记忆已更新，当前记忆数: {user_memory['num']}")
+            logger.info(f"用户 {user_id} 的记忆已更新，当前记忆数: {user_memory['num']}")
         except Exception as e:
             logger.error(f"保存长期记忆时出错: {str(e)}")
 
@@ -762,50 +762,13 @@ class morePersonLikePlugin(Star):
             logger.error(f"查询长期记忆时出错: {str(e)}")
             return "查询长期记忆时出错，请稍后再试"
         
-    async def _print_memory_to_file(self, user_id: str):
-        """将用户的记忆保存到文件中
-        
-        Args:
-            user_id (str): 用户的ID
-        """
-        try:
-            file_path = self.long_term_memory_file_path
-            memory_file = os.path.join(os.path.dirname(file_path), f"{user_id}_memory.txt")
-
-            # 每一行保存一条记忆
-            # YYYY-MM-DD HH:MM:SS 重要性评分 记忆内容
-            user_memory = {}
-            if os.path.exists(file_path):
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    user_memory = json.load(f)
-            else:
-                logger.error(f"长期记忆数据文件不存在: {file_path}")
-                return
-            user_id_str = str(user_id)
-            user_memory = user_memory.get(user_id_str, {})
-            if not user_memory:
-                logger.warning(f"用户 {user_id} 没有长期记忆数据")
-                return
-            # 将用户的记忆保存到文件
-            # 创建目录
-            os.makedirs(os.path.dirname(memory_file), exist_ok=True)
-            # 写入文件
-            with open(memory_file, 'w', encoding='utf-8') as f:
-                for memory in user_memory.get("data", []):
-                    line = f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(memory['time']))} {memory['importance']} {memory['query']}\n"
-                    f.write(line)
-            logger.info(f"用户 {user_id} 的记忆已保存到文件: {memory_file}")
-            logger.info(f"记忆内容: {user_memory.get('data', [])}")
-        except Exception as e:
-            logger.error(f"保存用户记忆时出错: {str(e)}")
-            raise
-
     @filter.command("导出记忆")
     async def export_memory(self, event: AstrMessageEvent):
-        """导出用户的长期记忆到文件"""
+        """导出用户的长期记忆到文本"""
         # 如果长期记忆功能被禁用，直接返回
         if not self.long_term_memory_enabled:
             yield event.plain_result("长期记忆功能已禁用，无法导出记忆")
+            return
         
         user_id = event.get_sender_id()
         if not user_id:
@@ -813,9 +776,33 @@ class morePersonLikePlugin(Star):
             return
         
         try:
-            await self._print_memory_to_file(user_id)
-            memory_file_path = os.path.join(os.path.dirname(self.long_term_memory_file_path), f"{user_id}_memory.txt")
-            yield event.chain_result([Comp.File(file_path=memory_file_path, name=f"{user_id}_memory.txt")])
+            # 读取用户的记忆数据
+            user_id_str = str(user_id)
+            memory_data = {}
+            
+            if os.path.exists(self.long_term_memory_file_path):
+                with open(self.long_term_memory_file_path, 'r', encoding='utf-8') as f:
+                    memory_data = json.load(f)
+            
+            user_memory = memory_data.get(user_id_str, {})
+            
+            if not user_memory or not user_memory.get("data"):
+                yield event.plain_result("你还没有保存过任何记忆")
+                return
+            
+            # 直接构建文本内容
+            memory_text = f"用户 {user_id} 的记忆内容：\n\n"
+            
+            for memory in user_memory.get("data", []):
+                time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(memory['time']))
+                memory_text += f"时间: {time_str}\n"
+                memory_text += f"重要性: {memory['importance']}\n"
+                memory_text += f"内容: {memory['query']}\n"
+                memory_text += "-" * 40 + "\n"
+            
+            # 直接返回文本内容
+            yield event.plain_result(memory_text)
+            
         except Exception as e:
             logger.error(f"导出长期记忆时出错: {str(e)}")
             yield event.plain_result("导出长期记忆时出错，请稍后再试")
